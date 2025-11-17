@@ -1,0 +1,24 @@
+#!/bin/bash
+
+job_id="${PBS_JOBID%%.*}" # numeric job id
+
+cd "${REMOTE_WORKING_DIRECTORY}" || { echo "[run.pbs] Failed to change directory to ${REMOTE_WORKING_DIRECTORY}" >> "$HOME/job_${job_id}_error.log"; exit 1; }
+
+
+#---------------------------------------------------------------------------------------------------
+job_logs_dir="${REMOTE_WORKING_DIRECTORY}/HPC/logs/${job_id}"
+
+source "${job_logs_dir}/job_config.log"
+
+
+stdout_file="${job_logs_dir}/out.log"
+stderr_file="${job_logs_dir}/err.log"
+
+export HPC_JOB_LOGS_DIR="${job_logs_dir}"
+
+exec 1> "$stdout_file" 2> "$stderr_file"
+#---------------------------------------------------------------------------------------------------
+
+
+module load mpich-3.2
+mpirun.actual -n "${HPC_MPI_PROCESSES}" "${CMAKE_BUILD_HPC_DEBUG}/${PROJECT_BINARY}"

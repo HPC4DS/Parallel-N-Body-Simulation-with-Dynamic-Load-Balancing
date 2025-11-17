@@ -1,0 +1,7 @@
+.DS_Store
+.idea
+configs/project.env
+
+cmake-build-local-debug
+cmake-build-local-testing
+cmake-build-remote-testing
