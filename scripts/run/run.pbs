@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export LD_LIBRARY_PATH=/opt/pbs/lib:$LD_LIBRARY_PATH
+
 job_id="${PBS_JOBID%%.*}" # numeric job id
 
 cd "${REMOTE_WORKING_DIRECTORY}" || { echo "[run.pbs] Failed to change directory to ${REMOTE_WORKING_DIRECTORY}" >> "$HOME/job_${job_id}_error.log"; exit 1; }

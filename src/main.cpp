@@ -55,14 +55,12 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void print_build_info(int rank) {
+void print_build_info(const int rank) {
     UNIQUE_PRINT(rank, "Build Version: %s\n", BUILD_VERSION);
-    UNIQUE_PRINT(rank, "Git Commit Hash: %s\n", GIT_COMMIT_HASH);
-    UNIQUE_PRINT(rank, "Git Dirty: %s\n", GIT_DIRTY);
     UNIQUE_PRINT(rank, "Build Type: %s\n", BUILD_TYPE);
     UNIQUE_PRINT(rank, "Compiler: %s\n", CXX_COMPILER);
     UNIQUE_PRINT(rank, "CXX Flags: %s\n", CXX_FLAGS);
-    UNIQUE_PRINT(rank, "Build Timestamp: %s\n", BUILD_TIMESTAMP);
+    UNIQUE_PRINT(rank, "CMake Timestamp: %s\n", CMAKE_TIMESTAMP);
     UNIQUE_PRINT(rank, "System: %s (%s)\n", SYSTEM_NAME, SYSTEM_PROCESSOR);
 }
 
