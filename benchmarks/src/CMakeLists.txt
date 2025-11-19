@@ -1,7 +1,7 @@
 add_library(benchmark benchmark.c)
 
 # Public headers
-target_include_directories(benchmark PUBLIC ${CMAKE_SOURCE_DIR}/benchmarks/src/include/)
+target_include_directories(benchmark PUBLIC ${CMAKE_SOURCE_DIR}/benchmarks/include/)
 
 find_and_link_mpi_for_target(benchmark PRIVATE)
 find_and_link_openmp_for_target(benchmark PRIVATE)
