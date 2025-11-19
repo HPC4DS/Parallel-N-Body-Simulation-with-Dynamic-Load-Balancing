@@ -32,7 +32,7 @@ if (REMOTE_RUN)
     add_compile_definitions(HPC_RUN)
 endif ()
 
-#======================== SET PRINT_DEBUG_LEVEL per module ==============
+#======================== SET PRINT_DEBUG_LEVEL ==========================
 
 #------------- CUSTOM PRINT DEBUG LEVELS  -----------------
 #[[
@@ -59,13 +59,17 @@ set(PRINT_DEBUG_LEVEL_GLOBAL ${PRINT_DEBUG_LEVEL_INFO} CACHE STRING "Global debu
 include(cmake/utils.cmake)
 include(cmake/ExternalDependencies.cmake)
 include(cmake/PrintDebug.cmake)
+include(cmake/fetch_googletest.cmake)
+
 
 add_subdirectory(src)
 add_subdirectory(src/benchmark)
 add_subdirectory(app)
 add_subdirectory(sandbox)
 
-
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 #==============================================
 # UTILITIES TO COPY IN OTHER CMAKE FILES

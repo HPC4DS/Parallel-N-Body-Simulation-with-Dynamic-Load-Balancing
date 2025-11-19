@@ -9,4 +9,4 @@ find_and_link_openmp_for_target(benchmark PRIVATE)
 target_link_libraries(benchmark PRIVATE print_debug)
 
 set(BENCHMARK_PRINT_DEBUG_LEVEL ${GLOBAL_PRINT_DEBUG_LEVEL} CACHE STRING "Debug level for benchmark")
-define_print_debug_level_for_target(benchmark ${PRINT_DEBUG_LEVEL_BENCHMARK})
+define_print_debug_level_for_target(benchmark ${BENCHMARK_PRINT_DEBUG_LEVEL} )
