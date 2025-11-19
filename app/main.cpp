@@ -10,8 +10,6 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <cstring>
-#include <time.h>
-#include <stdarg.h>
 #include <unistd.h>
 
 #include "debug/print_debug.h"
