@@ -63,7 +63,7 @@ include(cmake/fetch_googletest.cmake)
 
 
 add_subdirectory(src)
-add_subdirectory(src/benchmark)
+add_subdirectory(benchmarks/src)
 add_subdirectory(app)
 add_subdirectory(sandbox)
 

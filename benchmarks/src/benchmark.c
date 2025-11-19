@@ -2,7 +2,7 @@
 // Created by Matteo Ranzi on 02/11/25.
 //
 
-#include "benchmark/benchmark.h"
+#include "benchmark.h"
 
 #include <string.h>
 #include <stdlib.h>

@@ -14,7 +14,7 @@
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
 
-#include "benchmark/benchmark.h"
+#include "benchmark.h"
 #include "BuildInfo.h"
 
 #ifdef HPC_RUN
