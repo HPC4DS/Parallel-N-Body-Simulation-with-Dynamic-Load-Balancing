@@ -1,11 +1,12 @@
 add_library(benchmark benchmark.c)
 
-include(${CMAKE_SOURCE_DIR}/cmake/PrintDebug.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/ExternalDependencies.cmake)
-
-
 # Public headers
 target_include_directories(benchmark PUBLIC ${CMAKE_SOURCE_DIR}/include/)
 
-find_and_link_mpi_for_target(benchmark)
-target_link_libraries(benchmark PUBLIC print_debug)
+find_and_link_mpi_for_target(benchmark PRIVATE)
+find_and_link_openmp_for_target(benchmark PRIVATE)
+
+target_link_libraries(benchmark PRIVATE print_debug)
+
+set(BENCHMARK_PRINT_DEBUG_LEVEL ${GLOBAL_PRINT_DEBUG_LEVEL} CACHE STRING "Debug level for benchmark")
+define_print_debug_level_for_target(benchmark ${PRINT_DEBUG_LEVEL_BENCHMARK})

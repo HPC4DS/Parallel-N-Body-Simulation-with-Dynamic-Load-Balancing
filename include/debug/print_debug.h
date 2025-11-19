@@ -38,21 +38,27 @@
 #endif
 
 #if PRINT_DEBUG_LEVEL >= PRINT_DEBUG_LEVEL_INFO
-#define PRINT_DEBUG_INFO(rank, format, ...) printf("[DEBUG_INFO][rank: %d] " format, rank, ##__VA_ARGS__)
+#define PRINT_DEBUG_INFO(format, ...) printf("[DEBUG_INFO] " format, ##__VA_ARGS__)
+#define PRINT_DEBUG_INFO_R(rank, format, ...) printf("[DEBUG_INFO][rank: %d] " format, rank, ##__VA_ARGS__)
 #else
-#define PRINT_DEBUG_INFO(rank, format, ...)
+#define PRINT_DEBUG_INFO(format, ...)
+#define PRINT_DEBUG_INFO_R(rank, format, ...)
 #endif
 
 #if PRINT_DEBUG_LEVEL >= PRINT_DEBUG_LEVEL_WARN
-#define PRINT_DEBUG_WARN(rank, format, ...) printf("[DEBUG_WARN][rank: %d] " format, rank, ##__VA_ARGS__)
+#define PRINT_DEBUG_WARN(format, ...) printf("[DEBUG_WARN] " format, ##__VA_ARGS__)
+#define PRINT_DEBUG_WARN_R(rank, format, ...) printf("[DEBUG_WARN][rank: %d] " format, rank, ##__VA_ARGS__)
 #else
-#define PRINT_DEBUG_WARN(rank, format, ...)
+#define PRINT_DEBUG_WARN(format, ...)
+#define PRINT_DEBUG_WARN_R(rank, format, ...)
 #endif
 
 #if PRINT_DEBUG_LEVEL >= PRINT_DEBUG_LEVEL_ERROR
-#define PRINT_DEBUG_ERROR(rank, format, ...) do {printf("[DEBUG_ERROR][rank: %d] " format, rank, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR][Rank: %d]" format, rank, ##__VA_ARGS__);} while(0)
+#define PRINT_DEBUG_ERROR(format, ...) do {printf("[DEBUG_ERROR] " format, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR][Rank: %d]" format, rank, ##__VA_ARGS__);} while(0)
+#define PRINT_DEBUG_ERROR_R(rank, format, ...) do {printf("[DEBUG_ERROR][rank: %d] " format, rank, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR][Rank: %d]" format, rank, ##__VA_ARGS__);} while(0)
 #else
-#define PRINT_DEBUG_ERROR(rank, format, ...)
+#define PRINT_DEBUG_ERROR(format, ...)
+#define PRINT_DEBUG_ERROR_R(rank, format, ...)
 #endif
 
 

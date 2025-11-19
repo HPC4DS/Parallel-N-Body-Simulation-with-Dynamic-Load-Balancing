@@ -1,7 +1,9 @@
 .DS_Store
-.idea
+.idea/
 configs/project.env
 
-cmake-build-local-debug
-cmake-build-local-testing
-cmake-build-remote-testing
+cmake-build-local-debug/
+cmake-build-hpc-debug/
+
+output/local/logs/
+output/HPC/logs/

@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <cstring>
-#include <iostream>
 
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
@@ -56,6 +55,7 @@ int main(int argc, char *argv[]) {
 }
 
 void print_build_info(const int rank) {
+    UNIQUE_PRINT(rank, "CXX Standard: %ld\n", __cplusplus);
     UNIQUE_PRINT(rank, "Build Version: %s\n", BUILD_VERSION);
     UNIQUE_PRINT(rank, "Build Type: %s\n", BUILD_TYPE);
     UNIQUE_PRINT(rank, "Compiler: %s\n", CXX_COMPILER);

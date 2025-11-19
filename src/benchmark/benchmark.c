@@ -213,6 +213,7 @@ void benchmark_run(const int my_rank, const char* benchmark_name, const Applicat
     write_benchmark_log_header(my_rank, benchmark_log_file, benchmark_name);
 
     MPI_Barrier(MPI_COMM_WORLD);
+    //TODO repeat the execution multiple times and take the average (or the min value)
     const double start_time = MPI_Wtime();
     app(my_rank);
     const double end_time = MPI_Wtime();

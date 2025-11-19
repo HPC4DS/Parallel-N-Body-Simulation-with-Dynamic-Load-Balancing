@@ -8,6 +8,9 @@
 #include <mpi.h>
 #include <stdio.h>
 
+//TODO define a struct BenchmarkResult to store benchmark results
+//TODO define a struct BenchmarkConfig to store benchmark configuration, and allow multiple runs with different configurations
+
 #ifdef __cplusplus
 extern "C" {
 #endif

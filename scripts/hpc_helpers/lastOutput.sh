@@ -7,8 +7,8 @@ fi
 
 cd "${REMOTE_WORKING_DIRECTORY}" || { echo "[lastOutput.sh] Failed to change directory to ${REMOTE_WORKING_DIRECTORY}"; exit 1; }
 
-LAST_JOB_ID="$(cat ./HPC/logs/last_job/job_id)"
-LAST_OUTPUT_FILE="./HPC/logs/${LAST_JOB_ID}/out.log"
+LAST_JOB_ID="$(cat "${HPC_JOB_LOGS_DIR}/last_job/job_id")"
+LAST_OUTPUT_FILE="${HPC_JOB_LOGS_DIR}/${LAST_JOB_ID}/out.log"
 
 printf "\n==========================================================\n"
 printf "STDOUT OF JOB: %s" "${LAST_JOB_ID}"

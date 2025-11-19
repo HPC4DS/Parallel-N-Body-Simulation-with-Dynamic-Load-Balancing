@@ -4,10 +4,10 @@ include(${CMAKE_SOURCE_DIR}/cmake/utils.cmake)
 # ------------------------------------------------------------------------------
 # MPI (always C)
 # ------------------------------------------------------------------------------
-function(find_and_link_mpi_for_target tgt)
+function(find_and_link_mpi_for_target tgt SCOPE)
     find_package(MPI REQUIRED)
 
-    target_link_libraries(${tgt} PRIVATE MPI::MPI_C)
+    target_link_libraries(${tgt} ${SCOPE} MPI::MPI_C)
     colored_message(${Blue}  "Link MPI::MPI_C to target ${tgt}")
 endfunction()
 
@@ -16,7 +16,7 @@ endfunction()
 # OpenMP (C/C++ detection)
 # ------------------------------------------------------------------------------
 # Provide helper function to link OpenMP per-target based on language (C/C++)
-function(find_and_link_openmp_for_target tgt)
+function(find_and_link_openmp_for_target tgt SCOPE)
     # Try normal find_package first
     find_package(OpenMP)
 
@@ -64,11 +64,11 @@ function(find_and_link_openmp_for_target tgt)
 
     if(HAS_CXX)
         colored_message(${Blue} "Link OpenMP::OpenMP_CXX to target ${tgt}")
-        target_link_libraries(${tgt} PRIVATE OpenMP::OpenMP_CXX)
+        target_link_libraries(${tgt} ${SCOPE} OpenMP::OpenMP_CXX)
     endif()
     if(HAS_C)
         colored_message(${Blue}  "Link OpenMP::OpenMP_C to target ${tgt}")
-        target_link_libraries(${tgt} PRIVATE OpenMP::OpenMP_C)
+        target_link_libraries(${tgt} ${SCOPE} OpenMP::OpenMP_C)
     endif()
 
 endfunction()
