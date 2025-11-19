@@ -17,8 +17,8 @@
 
 #define UNIQUE_PRINT(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {printf("[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
 
-#define UNIQUE_PRINT_DEBUG_INFO(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_INFO(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
-#define UNIQUE_PRINT_DEBUG_WARN(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_WARN(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
-#define UNIQUE_PRINT_DEBUG_ERROR(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_ERROR(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
+#define UNIQUE_PRINT_DEBUG_INFO(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_INFO_R(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
+#define UNIQUE_PRINT_DEBUG_WARN(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_WARN_R(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
+#define UNIQUE_PRINT_DEBUG_ERROR(rank, format, ...) do { if ((rank) == MASTER_PROCESS) PRAGMA_OMP_MASTER {PRINT_DEBUG_ERROR_R(rank, "[UNIQUE] " format, ##__VA_ARGS__);} } while (0)
 
 #endif //BM_P2P_COMM_PRINT_DEBUG_H

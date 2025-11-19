@@ -45,7 +45,7 @@ static void handle_mpi_error_and_abort(const int my_rank, const int ret_value, c
     char error_string[MPI_MAX_ERROR_STRING];
     int error_string_len;
     MPI_Error_string(ret_value, error_string, &error_string_len);
-    PRINT_DEBUG_ERROR(my_rank, "%s: %s\n", message, error_string);
+    PRINT_DEBUG_ERROR_R(my_rank, "%s: %s\n", message, error_string);
 
     benchmark_abort(ret_value);
 }
@@ -60,7 +60,7 @@ static void handle_mpi_error_and_abort(const int my_rank, const int ret_value, c
 static void create_benchmark_filename(const int my_rank, char *benchmark_log_filename, const char *logs_dir) {
     const int len = snprintf(benchmark_log_filename, MAX_LOG_FILENAME_LENGTH, "%s/%s", logs_dir, BENCHMARK_FILE_NAME);
     if (len < 0 || len >= MAX_LOG_FILENAME_LENGTH) {
-        PRINT_DEBUG_ERROR(my_rank, "[BENCHMARK] Benchmark log filename too long (truncated)\n");
+        PRINT_DEBUG_ERROR_R(my_rank, "[BENCHMARK] Benchmark log filename too long (truncated)\n");
         benchmark_abort(1);
     }
 }
@@ -75,7 +75,7 @@ static void create_benchmark_filename(const int my_rank, char *benchmark_log_fil
 static void open_benchmark_file(const int my_rank, const char *filename, MPI_File *mpi_file) {
     if (my_rank == 0) {
         if (remove(filename) != 0 && errno != ENOENT) {
-            PRINT_DEBUG_ERROR(my_rank, "[BENCHMARK] Failed to remove existing file '%s': %s\n", filename, strerror(errno));
+            PRINT_DEBUG_ERROR_R(my_rank, "[BENCHMARK] Failed to remove existing file '%s': %s\n", filename, strerror(errno));
             benchmark_abort(1);
         }
     }
@@ -111,7 +111,7 @@ static void benchmark_unique_log(const int my_rank, const MPI_File *file, const 
             handle_mpi_error_and_abort(my_rank, MPI_ERR_OTHER, "[BENCHMARK] Error writing to benchmark file");
         }
     } else {
-        PRINT_DEBUG_WARN(my_rank, "[BENCHMARK] Log message too long (truncated)\n");
+        PRINT_DEBUG_WARN_R(my_rank, "[BENCHMARK] Log message too long (truncated)\n");
     }
 }
 
@@ -197,7 +197,7 @@ void benchmark_finalize(const int my_rank, MPI_File *benchmark_log_file) {
         char error_string[MPI_MAX_ERROR_STRING];
         int error_string_len;
         MPI_Error_string(ret, error_string, &error_string_len);
-        PRINT_DEBUG_WARN(my_rank, "[BENCHMARK] Error closing benchmark log file: %s\n", error_string);
+        PRINT_DEBUG_WARN_R(my_rank, "[BENCHMARK] Error closing benchmark log file: %s\n", error_string);
     }
 }
 

@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 
     //=============================================================================
     benchmark_init(my_rank, LOGS_DIR, &benchmark_log_file);
-    benchmark_run(my_rank, "Void Application", [](const int rank){PRINT_DEBUG_INFO(rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, &benchmark_log_file);
+    benchmark_run(my_rank, "Void Application", [](const int rank){PRINT_DEBUG_INFO_R(rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, &benchmark_log_file);
     benchmark_finalize(my_rank, &benchmark_log_file);
     //=============================================================================
 
