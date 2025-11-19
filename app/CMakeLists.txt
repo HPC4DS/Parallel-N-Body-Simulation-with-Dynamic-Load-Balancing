@@ -11,8 +11,10 @@ if(USE_OPENMP)
     find_and_link_openmp_for_target(${PROJECT_NAME} PRIVATE)
 endif ()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE print_debug)
 target_link_libraries(${PROJECT_NAME} PRIVATE benchmark)
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
 
 
 set(MAIN_PRINT_DEBUG_LEVEL ${GLOBAL_PRINT_DEBUG_LEVEL} CACHE STRING "Debug level for main")

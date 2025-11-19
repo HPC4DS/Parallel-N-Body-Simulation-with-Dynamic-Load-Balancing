@@ -1,6 +1,5 @@
 # FIND AND LINK EXTERNAL PACKAGE DEPENDENCIES
 
-include(${CMAKE_SOURCE_DIR}/cmake/utils.cmake)
 # ------------------------------------------------------------------------------
 # MPI (always C)
 # ------------------------------------------------------------------------------

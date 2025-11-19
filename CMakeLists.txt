@@ -56,7 +56,7 @@ set(PRINT_DEBUG_LEVEL_GLOBAL ${PRINT_DEBUG_LEVEL_INFO} CACHE STRING "Global debu
 
 #======================== Include dependencies ===========================
 
-include(cmake/utils.cmake)
+include(cmake/cmake_utils.cmake)
 include(cmake/ExternalDependencies.cmake)
 include(cmake/PrintDebug.cmake)
 include(cmake/fetch_googletest.cmake)
@@ -92,3 +92,4 @@ endif()
 # ------
 #include(${CMAKE_SOURCE_DIR}/cmake/PrintDebug.cmake)
 #include(${CMAKE_SOURCE_DIR}/cmake/ExternalDependencies.cmake)
+#include(${CMAKE_SOURCE_DIR}/cmake/cmake_utils.cmake)

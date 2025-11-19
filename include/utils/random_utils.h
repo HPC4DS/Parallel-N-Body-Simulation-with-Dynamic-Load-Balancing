@@ -1,0 +1,10 @@
+//
+// Created by Matteo Ranzi on 19/11/25.
+//
+
+#ifndef N_BODY_SIMULATION_RANDOM_UTILS_H
+#define N_BODY_SIMULATION_RANDOM_UTILS_H
+
+
+
+#endif //N_BODY_SIMULATION_RANDOM_UTILS_H
