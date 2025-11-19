@@ -12,6 +12,8 @@ if(USE_OPENMP)
 endif ()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE benchmark)
+target_link_libraries(${PROJECT_NAME} PRIVATE utils)
+target_link_libraries(${PROJECT_NAME} PRIVATE print_debug)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/include)
 

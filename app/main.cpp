@@ -10,9 +10,13 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <cstring>
+#include <time.h>
+#include <stdarg.h>
+#include <unistd.h>
 
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
+#include "utils/info_utils.h"
 
 #include "benchmark.h"
 #include "BuildInfo.h"
@@ -25,7 +29,6 @@
 
 
 void wait_for_attach_debugger(int rank);
-void print_build_info(int rank);
 
 int main(int argc, char *argv[]) {
     int comm_size;
@@ -43,25 +46,21 @@ int main(int argc, char *argv[]) {
     wait_for_attach_debugger(my_rank);
 
     //=============================================================================
-    benchmark_init(my_rank, LOGS_DIR, &benchmark_log_file);
-    benchmark_run(my_rank, "Void Application", [](const int rank){PRINT_DEBUG_INFO_R(rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, &benchmark_log_file);
-    benchmark_finalize(my_rank, &benchmark_log_file);
+    BenchmarkConfig benchmark_config;
+    benchmark_config.logs_dir = LOGS_DIR;
+    benchmark_config.mpi_log_file = &benchmark_log_file;
+    strcpy(benchmark_config.name, "Main app testing benchmark");
+    benchmark_config.n_iterations = 50;
+
+    benchmark_init(my_rank, &benchmark_config);
+    benchmark_run(my_rank, &benchmark_config, [](const int rank){PRINT_DEBUG_INFO_R(rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, NULL);
+    benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 
     
     MPI_Finalize();
 
     return 0;
-}
-
-void print_build_info(const int rank) {
-    UNIQUE_PRINT(rank, "CXX Standard: %ld\n", __cplusplus);
-    UNIQUE_PRINT(rank, "Build Version: %s\n", BUILD_VERSION);
-    UNIQUE_PRINT(rank, "Build Type: %s\n", BUILD_TYPE);
-    UNIQUE_PRINT(rank, "Compiler: %s\n", CXX_COMPILER);
-    UNIQUE_PRINT(rank, "CXX Flags: %s\n", CXX_FLAGS);
-    UNIQUE_PRINT(rank, "CMake Timestamp: %s\n", CMAKE_TIMESTAMP);
-    UNIQUE_PRINT(rank, "System: %s (%s)\n", SYSTEM_NAME, SYSTEM_PROCESSOR);
 }
 
 

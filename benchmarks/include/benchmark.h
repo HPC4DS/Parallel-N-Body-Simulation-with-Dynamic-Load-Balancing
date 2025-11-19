@@ -7,9 +7,9 @@
 
 #include <mpi.h>
 #include <stdio.h>
+#include <string.h>
 
-//TODO define a struct BenchmarkResult to store benchmark results
-//TODO define a struct BenchmarkConfig to store benchmark configuration, and allow multiple runs with different configurations
+//TODO currently local benchmark is overwritten with previous ones
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,16 +17,23 @@ extern "C" {
 
     typedef void (*Application)(int rank);
 
-    /*typedef struct {
-        const char* name;
+    typedef struct {
+        char name[256];
+        int n_iterations;
+        const char *logs_dir;
+        MPI_File *mpi_log_file;
+    } BenchmarkConfig;
+
+    typedef struct {
+        double min_time;
+        double max_time;
         double avg_time;
-        size_t problem_size;
-    } BenchmarkResult;*/
+    } BenchmarkResult;
 
-    void benchmark_init(int my_rank, const char *logs_dir, MPI_File *benchmark_log_file);
-    void benchmark_finalize(int my_rank, MPI_File *benchmark_log_file);
+    void benchmark_init(int my_rank, const BenchmarkConfig* benchmark_config);
+    void benchmark_finalize(int my_rank, const BenchmarkConfig* benchmark_config);
 
-    void benchmark_run(int my_rank, const char* benchmark_name, Application app, const MPI_File *benchmark_log_file);
+    void benchmark_run(int my_rank, const BenchmarkConfig* benchmark_config, Application app, BenchmarkResult* benchmark_result);
 
 #ifdef __cplusplus
 }

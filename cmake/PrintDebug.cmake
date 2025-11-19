@@ -1,5 +1,7 @@
 include_guard(DIRECTORY)
 
+add_library(print_debug INTERFACE)
+target_include_directories(print_debug INTERFACE ${CMAKE_SOURCE_DIR}/include)
 
 #------------- CUSTOM PRINT DEBUG LEVELS (for console print) -----------------
 #[[

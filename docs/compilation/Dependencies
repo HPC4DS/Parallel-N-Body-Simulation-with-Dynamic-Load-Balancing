@@ -1,0 +1,1 @@
+CMake modules (aka cpp files) that uses utils headers (e.g., build_utils.h) have to link to the utils library in order to avoid undefined reference on generated header files (e.g., BuildInfo.h).
