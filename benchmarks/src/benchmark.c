@@ -222,7 +222,7 @@ void benchmark_finalize(const int my_rank, const BenchmarkConfig* benchmark_conf
 //TODO set, via benchmark_config, the type of benchmark measurement: amplified average, per call min, max and average...
 //TODO convert benchmark to C++
 void benchmark_run_c(const int my_rank, const BenchmarkConfig* benchmark_config, const Application app, void *arguments, BenchmarkResult* benchmark_result) {
-    write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->name);
+    write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->description);
 
     MPI_Barrier(MPI_COMM_WORLD);
 

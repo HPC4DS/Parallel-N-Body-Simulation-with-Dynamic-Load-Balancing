@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
     BenchmarkConfig benchmark_config;
     benchmark_config.logs_dir = LOGS_DIR;
     benchmark_config.mpi_log_file = &benchmark_log_file;
-    strcpy(benchmark_config.name, "Main app testing benchmark");
+    strcpy(benchmark_config.description, "Main app testing benchmark");
     benchmark_config.n_iterations = 50;
 
     benchmark_init(my_rank, &benchmark_config);

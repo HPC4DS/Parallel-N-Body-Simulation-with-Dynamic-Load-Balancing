@@ -18,7 +18,7 @@ extern "C" {
     typedef void (*Application)(void *arguments);
 
     typedef struct {
-        char name[256];
+        char description[256];
         int n_iterations;
         const char *logs_dir;
         MPI_File *mpi_log_file;
