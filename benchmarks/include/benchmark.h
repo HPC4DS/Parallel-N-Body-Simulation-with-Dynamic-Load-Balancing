@@ -10,6 +10,7 @@
 #include <string.h>
 
 //TODO currently local benchmark is overwritten with previous ones
+//TODO convert benchmark to C++
 
 #ifdef __cplusplus
 extern "C" {

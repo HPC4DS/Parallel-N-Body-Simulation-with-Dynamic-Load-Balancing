@@ -2,12 +2,15 @@
 // Created by Matteo Ranzi on 19/11/25.
 //
 
+#include <iostream>
 #include <mpi.h>
+#include <ostream>
 #include <vector>
 
 #include "debug/print_debug.h"
 #include "utils/random_utils.h"
 #include "benchmark.hpp"
+#include "debug/unique_print_debug.h"
 
 #ifdef HPC_RUN
 #define LOGS_DIR getenv("HPC_JOB_LOGS_DIR")
@@ -15,7 +18,7 @@
 #define LOGS_DIR getenv("LOCAL_LOGS_DIR")
 #endif
 
-#define N_BODIES 80000000
+#define N_BODIES 1000000
 #define DIMENSIONS 3
 
 // TODO SoA vs AoS benchmark (structure of arrays vs array of structures -> when to use the first and when the second?)
@@ -54,28 +57,33 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-
     BenchmarkConfig benchmark_config;
     benchmark_setup(my_rank, &benchmark_config, &benchmark_log_file);
     benchmark_init(my_rank, &benchmark_config);
 
-    PRINT_DEBUG_INFO("Generating %d bodies...\n", N_BODIES);
-    generate_bodies(bodies, N_BODIES);
-    PRINT_DEBUG_INFO("Bodies generated.\n");
+    if (my_rank == 0) {
+        PRINT_DEBUG_INFO("Generating %d bodies...\n", N_BODIES);
+        generate_bodies(bodies, N_BODIES);
+        PRINT_DEBUG_INFO("Bodies generated.\n");
+    }
+
     // compute_bounding_box(bodies, min_pos, max_pos);
     //=============================================================================
     benchmark_run(my_rank, &benchmark_config, [&]() {
-        linear_compute_bounding_box(bodies, min_pos, max_pos);
+        if (my_rank == 0) {
+            linear_compute_bounding_box(bodies, min_pos, max_pos);
+        }
     },
     nullptr);
     //=============================================================================
 
+
     benchmark_finalize(my_rank, &benchmark_config);
 
-    PRINT_DEBUG_INFO("Bounding Box:\n");
-    PRINT_DEBUG_INFO("X: [%.20f, %.20f]\n", min_pos[Body::X], max_pos[Body::X]);
-    PRINT_DEBUG_INFO("Y: [%.20f, %.20f]\n", min_pos[Body::Y], max_pos[Body::Y]);
-    PRINT_DEBUG_INFO("Z: [%.20f, %.20f]\n", min_pos[Body::Z], max_pos[Body::Z]);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "(Linear) Bounding Box:\n");
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "X: [%.20f, %.20f]\n", min_pos[Body::X], max_pos[Body::X]);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "Y: [%.20f, %.20f]\n", min_pos[Body::Y], max_pos[Body::Y]);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "Z: [%.20f, %.20f]\n", min_pos[Body::Z], max_pos[Body::Z]);
 
     MPI_Finalize();
 

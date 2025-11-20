@@ -11,9 +11,9 @@ echo "JOB_ID: ${job_id}"
 
 numeric_job_id="${job_id%%.*}"
 
-mkdir -p "./HPC/logs/${numeric_job_id}"
-cp "${HPC_CONFIG_FILE}" "./HPC/logs/${numeric_job_id}/job_config.log"
-chmod 444 "./HPC/logs/${numeric_job_id}/job_config.log"
+mkdir -p "${HPC_JOB_LOGS_DIR}/${numeric_job_id}"
+cp "${HPC_CONFIG_FILE}" "${HPC_JOB_LOGS_DIR}/${numeric_job_id}/job_config.log"
+chmod 444 "${HPC_JOB_LOGS_DIR}/${numeric_job_id}/job_config.log"
 
-mkdir -p ./HPC/logs/last_job
-echo "${numeric_job_id}" > ./HPC/logs/last_job/job_id
+mkdir -p "${HPC_JOB_LOGS_DIR}/last_job"
+echo "${numeric_job_id}" > "${HPC_JOB_LOGS_DIR}/last_job/job_id"

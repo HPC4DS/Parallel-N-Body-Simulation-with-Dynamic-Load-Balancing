@@ -8,7 +8,7 @@ cd "${REMOTE_WORKING_DIRECTORY}" || { echo "[run.pbs] Failed to change directory
 
 
 #---------------------------------------------------------------------------------------------------
-job_logs_dir="${REMOTE_WORKING_DIRECTORY}/HPC/logs/${job_id}"
+job_logs_dir="${HPC_JOB_LOGS_DIR}/${job_id}"
 
 source "${job_logs_dir}/job_config.log"
 
@@ -26,9 +26,9 @@ module load mpich-3.2
 
 
 if [[ "${SANDBOX:-0}" == 1 ]]; then
-    BINARY=SANDBOX_BINARY
+    BINARY=${SANDBOX_BINARY}
 else
-    BINARY=PROJECT_BINARY
+    BINARY=${PROJECT_BINARY}
 fi
 
 
