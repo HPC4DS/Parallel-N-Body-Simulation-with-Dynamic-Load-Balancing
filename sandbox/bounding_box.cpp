@@ -7,7 +7,7 @@
 
 #include "debug/print_debug.h"
 #include "utils/random_utils.h"
-#include "benchmark.h"
+#include "benchmark.hpp"
 
 #ifdef HPC_RUN
 #define LOGS_DIR getenv("HPC_JOB_LOGS_DIR")
@@ -15,7 +15,7 @@
 #define LOGS_DIR getenv("LOCAL_LOGS_DIR")
 #endif
 
-#define N_BODIES 10000000
+#define N_BODIES 80000000
 #define DIMENSIONS 3
 
 // TODO SoA vs AoS benchmark (structure of arrays vs array of structures -> when to use the first and when the second?)
@@ -36,17 +36,51 @@ void compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[D
 
 //=============================================================================
 int main(int argc, char *argv[]) {
+    int comm_size;
+    int my_rank;
+    MPI_File benchmark_log_file;
+
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+
     std::vector<Body> bodies;
     double min_pos[DIMENSIONS];
     double max_pos[DIMENSIONS];
 
+    PRINT_DEBUG_INFO("Generating %d bodies...\n", N_BODIES);
     generate_bodies(bodies, N_BODIES);
-    compute_bounding_box(bodies, min_pos, max_pos);
+    PRINT_DEBUG_INFO("Bodies generated.\n");
+    // compute_bounding_box(bodies, min_pos, max_pos);
+
+
+    //=============================================================================
+    BenchmarkConfig benchmark_config;
+    benchmark_config.logs_dir = LOGS_DIR;
+    benchmark_config.mpi_log_file = &benchmark_log_file;
+    strcpy(benchmark_config.name, "Linear Bounding Box Computation. N Bodies: ");
+    strcat(benchmark_config.name, std::to_string(N_BODIES).c_str());
+    benchmark_config.n_iterations = 5;
+
+    benchmark_init(my_rank, &benchmark_config);
+
+    benchmark_run(my_rank, &benchmark_config, [&]() {
+        compute_bounding_box(bodies, min_pos, max_pos);
+    },
+    nullptr);
+
+    benchmark_finalize(my_rank, &benchmark_config);
+    //=============================================================================
 
     PRINT_DEBUG_INFO("Bounding Box:\n");
     PRINT_DEBUG_INFO("X: [%.20f, %.20f]\n", min_pos[Body::X], max_pos[Body::X]);
     PRINT_DEBUG_INFO("Y: [%.20f, %.20f]\n", min_pos[Body::Y], max_pos[Body::Y]);
     PRINT_DEBUG_INFO("Z: [%.20f, %.20f]\n", min_pos[Body::Z], max_pos[Body::Z]);
+
+    MPI_Finalize();
 
 
     return 0;

@@ -215,11 +215,13 @@ void benchmark_finalize(const int my_rank, const BenchmarkConfig* benchmark_conf
  * @param my_rank The rank of the current process.
  * @param benchmark_config The configuration for the benchmark.
  * @param app The application function to benchmark.
+ * @param arguments The arguments to pass to the application function.
  * @param benchmark_result The structure to store benchmark results.
  */
 
 //TODO set, via benchmark_config, the type of benchmark measurement: amplified average, per call min, max and average...
-void benchmark_run(int my_rank, const BenchmarkConfig* benchmark_config, const Application app, BenchmarkResult* benchmark_result) {
+//TODO convert benchmark to C++
+void benchmark_run_c(const int my_rank, const BenchmarkConfig* benchmark_config, const Application app, void *arguments, BenchmarkResult* benchmark_result) {
     write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->name);
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -228,12 +230,13 @@ void benchmark_run(int my_rank, const BenchmarkConfig* benchmark_config, const A
     double max_time = 0;
     double avg_time = 0;
 
+    PRINT_DEBUG_INFO("[BENCHMARK] ***STARTING BENCHMARK***\n");
     double amplified_avg_time = MPI_Wtime();
     for (int i = 0; i < benchmark_config->n_iterations; i++) {
         // UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] Starting iteration %d/%d for benchmark '%s'\n", i + 1, benchmark_config->n_iterations, benchmark_config->name);
 
         const double start_time = MPI_Wtime();
-        app(my_rank);
+        app(arguments);
         const double end_time = MPI_Wtime();
 
         const double elapsed_time = end_time - start_time;
@@ -247,6 +250,8 @@ void benchmark_run(int my_rank, const BenchmarkConfig* benchmark_config, const A
     amplified_avg_time /= benchmark_config->n_iterations;
 
     avg_time /= benchmark_config->n_iterations;
+
+    PRINT_DEBUG_INFO("[BENCHMARK] ***ENDING BENCHMARK***\n");
 
     benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "\n***\n");
     benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Results over %d iterations, with timer resolution of %.12f seconds:\n", benchmark_config->n_iterations, MPI_Wtick());

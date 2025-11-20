@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-    typedef void (*Application)(int rank);
+    typedef void (*Application)(void *arguments);
 
     typedef struct {
         char name[256];
@@ -33,7 +33,7 @@ extern "C" {
     void benchmark_init(int my_rank, const BenchmarkConfig* benchmark_config);
     void benchmark_finalize(int my_rank, const BenchmarkConfig* benchmark_config);
 
-    void benchmark_run(int my_rank, const BenchmarkConfig* benchmark_config, Application app, BenchmarkResult* benchmark_result);
+    void benchmark_run_c(int my_rank, const BenchmarkConfig* benchmark_config, Application app, void *arguments, BenchmarkResult* benchmark_result);
 
 #ifdef __cplusplus
 }
