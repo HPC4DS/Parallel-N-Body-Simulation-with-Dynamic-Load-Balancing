@@ -266,11 +266,12 @@ void benchmark_run_c(const int my_rank, const BenchmarkConfig* benchmark_config,
         // Per-iteration statistics
         for (int i = 0; i < benchmark_config->n_iterations; i++) {
             double iter_min = DBL_MAX, iter_max = 0, iter_sum = 0;
+            int iter_min_rank = -1, iter_max_rank = -1;
 
             for (int r = 0; r < world_size; r++) {
                 const double t = all_local_times[r * benchmark_config->n_iterations + i];
-                if (t < iter_min) iter_min = t;
-                if (t > iter_max) iter_max = t;
+                if (t < iter_min) {iter_min = t; iter_min_rank = r;}
+                if (t > iter_max) {iter_max = t; iter_max_rank = r;}
                 iter_sum += t;
             }
 
@@ -278,8 +279,8 @@ void benchmark_run_c(const int my_rank, const BenchmarkConfig* benchmark_config,
             const double load_imbalance = (iter_max - iter_min) / iter_avg * 100.0;
 
             benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,
-                "Iteration %d: Global=%.6lf, Min=%.6lf, Max=%.6lf, Avg=%.6lf, Imbalance=%.2f%%\n",
-                i + 1, global_times[i], iter_min, iter_max, iter_avg, load_imbalance);
+                "Iteration %d: Global=%.6lf, Min(rank %d)=%.6lf, Max(rank %d)=%.6lf, Avg=%.6lf, Imbalance=%.2f%%\n",
+                i + 1, global_times[i], iter_min_rank, iter_min, iter_max_rank, iter_max, iter_avg, load_imbalance);
         }
 
         free(all_local_times);

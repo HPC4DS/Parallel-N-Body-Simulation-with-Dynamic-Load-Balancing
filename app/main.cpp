@@ -16,7 +16,7 @@
 #include "debug/unique_print_debug.h"
 #include "utils/info_utils.h"
 
-#include "benchmark.h"
+#include "benchmark.hpp"
 #include "BuildInfo.h"
 
 #ifdef HPC_RUN
@@ -51,8 +51,7 @@ int main(int argc, char *argv[]) {
     benchmark_config.n_iterations = 50;
 
     benchmark_init(my_rank, &benchmark_config);
-    PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");
-    // benchmark_run(my_rank, &benchmark_config, [](const int rank){PRINT_DEBUG_INFO_R(rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, NULL);
+    benchmark_run(my_rank, &benchmark_config, [&](){PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, NULL);
     benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 

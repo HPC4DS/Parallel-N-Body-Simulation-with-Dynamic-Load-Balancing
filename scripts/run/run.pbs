@@ -22,8 +22,7 @@ exec 1> "$stdout_file" 2> "$stderr_file"
 #---------------------------------------------------------------------------------------------------
 
 
-module load mpich-3.2
-
+module load mpich-3.2.1--gcc-9.1.0
 
 if [[ "${SANDBOX:-0}" == 1 ]]; then
     BINARY=${SANDBOX_BINARY}
@@ -33,7 +32,7 @@ fi
 
 
 if [[ "${MPI_RUN:-0}" == 1 ]]; then
-    mpirun.actual -n "${HPC_MPI_PROCESSES}" "${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
+    mpirun -n "${HPC_MPI_PROCESSES}" "${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
 
 else
     "./${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
