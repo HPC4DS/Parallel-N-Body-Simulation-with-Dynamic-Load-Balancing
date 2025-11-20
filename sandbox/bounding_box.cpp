@@ -32,12 +32,20 @@ struct Body {
 };
 
 void generate_bodies(std::vector<Body>& bodies, int n_bodies);
-void compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]);
+void linear_compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]);
+void parallelMPI_compute_bounding_box(int rank, int comm_size, const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]);
+
+void benchmark_setup(int rank, BenchmarkConfig* benchmark_config, MPI_File* benchmark_log_file);
 
 //*********************************************************************************
 int main(int argc, char *argv[]) {
+    std::vector<Body> bodies;
+    double min_pos[DIMENSIONS];
+    double max_pos[DIMENSIONS];
+
     int comm_size;
     int my_rank;
+
     MPI_File benchmark_log_file;
 
 
@@ -47,30 +55,21 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
 
-    std::vector<Body> bodies;
-    double min_pos[DIMENSIONS];
-    double max_pos[DIMENSIONS];
+    BenchmarkConfig benchmark_config;
+    benchmark_setup(my_rank, &benchmark_config, &benchmark_log_file);
+    benchmark_init(my_rank, &benchmark_config);
 
     PRINT_DEBUG_INFO("Generating %d bodies...\n", N_BODIES);
     generate_bodies(bodies, N_BODIES);
     PRINT_DEBUG_INFO("Bodies generated.\n");
     // compute_bounding_box(bodies, min_pos, max_pos);
-
-
-    BenchmarkConfig benchmark_config;
-    benchmark_config.logs_dir = LOGS_DIR;
-    benchmark_config.mpi_log_file = &benchmark_log_file;
-    strcpy(benchmark_config.description, "Linear Bounding Box Computation. N Bodies: ");
-    strcat(benchmark_config.description, std::to_string(N_BODIES).c_str());
-    benchmark_config.n_iterations = 5;
-
-    benchmark_init(my_rank, &benchmark_config);
     //=============================================================================
     benchmark_run(my_rank, &benchmark_config, [&]() {
-        compute_bounding_box(bodies, min_pos, max_pos);
+        linear_compute_bounding_box(bodies, min_pos, max_pos);
     },
-    //=============================================================================
     nullptr);
+    //=============================================================================
+
     benchmark_finalize(my_rank, &benchmark_config);
 
     PRINT_DEBUG_INFO("Bounding Box:\n");
@@ -85,6 +84,13 @@ int main(int argc, char *argv[]) {
 }
 //*********************************************************************************
 
+void benchmark_setup(int rank, BenchmarkConfig* benchmark_config, MPI_File* benchmark_log_file) {
+    benchmark_config->logs_dir = LOGS_DIR;
+    benchmark_config->mpi_log_file = benchmark_log_file;
+    strcpy(benchmark_config->description, "Linear Bounding Box Computation. N Bodies: ");
+    strcat(benchmark_config->description, std::to_string(N_BODIES).c_str());
+    benchmark_config->n_iterations = 5;
+}
 
 void generate_bodies(std::vector<Body>& bodies, const int n_bodies) {
     bodies.resize(n_bodies);
@@ -97,7 +103,7 @@ void generate_bodies(std::vector<Body>& bodies, const int n_bodies) {
     }
 }
 
-void compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]) {
+void linear_compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]) {
     for (int axis = 0; axis < DIMENSIONS; ++axis) {
         min_body_pos[axis] = bodies[0].position[axis];
         max_body_pos[axis] = bodies[0].position[axis];
@@ -109,4 +115,8 @@ void compute_bounding_box(const std::vector<Body>& bodies, double min_body_pos[D
             if (body.position[axis] > max_body_pos[axis]) max_body_pos[axis] = body.position[axis];
         }
     }
+}
+
+void parallelMPI_compute_bounding_box(int rank, int comm_size, const std::vector<Body>& bodies, double min_body_pos[DIMENSIONS], double max_body_pos[DIMENSIONS]) {
+
 }
