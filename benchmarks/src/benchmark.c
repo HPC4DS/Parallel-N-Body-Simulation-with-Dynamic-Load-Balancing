@@ -160,6 +160,7 @@ static void write_benchmark_log_header(const int my_rank, const MPI_File *file, 
         handle_mpi_error_and_abort(my_rank, ret, "[BENCHMARK] MPI_Gather failed");
     }
 
+    benchmark_unique_log(my_rank, file, "Number of MPI processes: %d\n", world_size);
     if (my_rank == 0) {
         for (int r = 0; r < world_size; r++) {
             char *recv_name = all_names + r * MPI_MAX_PROCESSOR_NAME;
