@@ -108,10 +108,10 @@ void setup_bm_cnfg(BenchmarkConfig& benchmark_config, MPI_File& benchmark_log_fi
 void generate_bodies(std::vector<Body>& bodies, const int n_bodies) {
     bodies.resize(n_bodies);
     for (int i = 0; i < n_bodies; ++i) {
-        bodies[i].mass = random_real(1, 100);
+        bodies[i].mass = random_double(1, 100);
         for (int axis = 0; axis < DIMENSIONS; ++axis) {
-            bodies[i].position[axis] = random_real(1, 1000);
-            bodies[i].velocity[axis] = random_real(1, 100);
+            bodies[i].position[axis] = random_double(1, 1000);
+            bodies[i].velocity[axis] = random_double(1, 100);
         }
     }
 }

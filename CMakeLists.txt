@@ -27,6 +27,7 @@ configure_file(
 set(USE_MPI ON)
 set(USE_OPENMP ON)
 option(REMOTE_RUN "Configurations for remote run" ON)
+option(BUILD_TESTING "Enable testing" OFF)
 
 if (REMOTE_RUN)
     add_compile_definitions(HPC_RUN)
@@ -60,7 +61,6 @@ include(cmake/cmake_utils.cmake)
 include(cmake/ExternalDependencies.cmake)
 include(cmake/PrintDebug.cmake)
 include(cmake/utils.cmake)
-include(cmake/fetch_googletest.cmake)
 
 
 add_subdirectory(src)
@@ -69,6 +69,7 @@ add_subdirectory(app)
 add_subdirectory(sandbox)
 
 if(BUILD_TESTING)
+    include(cmake/fetch_googletest.cmake)
     add_subdirectory(tests)
 endif()
 

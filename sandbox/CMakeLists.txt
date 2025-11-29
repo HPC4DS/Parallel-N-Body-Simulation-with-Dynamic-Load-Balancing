@@ -14,8 +14,7 @@ foreach(src ${SANDBOX_SOURCES})
 
     # optional: extra flags
     # target_compile_definitions(${exec} PRIVATE EXPERIMENTAL_MODE)
-    # target_compile_options(CMAKE_CXX_FLAGS "-O3 -ftree-vectorize -march=native")
-
+target_compile_options(${exec} PRIVATE -O3 -ftree-vectorize -march=native)
     target_include_directories(${exec} PUBLIC "${PROJECT_BINARY_DIR}/generated")
     target_include_directories(${exec} PUBLIC ${CMAKE_SOURCE_DIR}/include)
 

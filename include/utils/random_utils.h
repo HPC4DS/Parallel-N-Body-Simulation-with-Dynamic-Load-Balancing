@@ -10,7 +10,7 @@
 #define DOUBLE_RANDOM_MIN (-32.768)
 #define DOUBLE_RANDOM_MAX (32.768)
 
-inline double random_real(const double min = DOUBLE_RANDOM_MIN, const double max = DOUBLE_RANDOM_MAX) {
+inline double random_double(const double min = DOUBLE_RANDOM_MIN, const double max = DOUBLE_RANDOM_MAX) {
     static std::random_device rd;
     static std::default_random_engine generator(rd());
     static std::uniform_real_distribution<double> distribution;
