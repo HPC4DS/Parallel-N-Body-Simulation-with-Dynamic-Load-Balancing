@@ -54,7 +54,7 @@
 #endif
 
 #if PRINT_DEBUG_LEVEL >= PRINT_DEBUG_LEVEL_ERROR
-#define PRINT_DEBUG_ERROR(format, ...) do {printf("[DEBUG_ERROR] " format, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR][Rank: %d]" format, rank, ##__VA_ARGS__);} while(0)
+#define PRINT_DEBUG_ERROR(format, ...) do {printf("[DEBUG_ERROR] " format, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR]" format, ##__VA_ARGS__);} while(0)
 #define PRINT_DEBUG_ERROR_R(rank, format, ...) do {printf("[DEBUG_ERROR][rank: %d] " format, rank, ##__VA_ARGS__); fprintf(stderr, "[DEBUG_ERROR][Rank: %d]" format, rank, ##__VA_ARGS__);} while(0)
 #else
 #define PRINT_DEBUG_ERROR(format, ...)

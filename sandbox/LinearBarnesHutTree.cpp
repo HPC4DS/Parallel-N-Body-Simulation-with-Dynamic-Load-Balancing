@@ -31,9 +31,16 @@ struct BarnesHutNode {
     double COM[SPACE_DIMENSIONS]; // center of mass
     double boundingBoxMin[SPACE_DIMENSIONS];
     double boundingBoxMax[SPACE_DIMENSIONS];
-    size_t childIndex; // Index of first child in nodes array (NO_CHILDREN if leaf)
+    size_t childrenIndex[2]; // Indices of child nodes (NO_CHILDREN if leaf)
+
+    // Fixme these may be redundant
     size_t particleIndex; // Index into particles array (NOT_A_LEAF if internal node)
     size_t particleCount; // Number of particles (1 for leaves, sum for internal nodes)
+
+    enum Children {
+        LEFT = 0,
+        RIGHT = 1
+    };
 };
 
 std::vector<Particle> randomParticles(const size_t nParticles) {
@@ -91,34 +98,33 @@ size_t findMaxCommonPrefixPosition(const std::vector<Particle>& particles, const
 
     if (firstCode == lastCode) {
         // All particles have the same Morton code in this range
-        return (firstIndex + lastIndex) / 2;
+        return (firstIndex + lastIndex) >> 1; // return the midpoint
     }
 
     // Find the position of highest differing bit
-    const int commonPrefixLength = __builtin_clzll(firstCode ^ lastCode) / SPACE_DIMENSIONS;
+    const int commonPrefixLength = __builtin_clzll(firstCode ^ lastCode);
 
-    // Binary search to find the split point where prefix changes
-    size_t splitIndex = firstIndex; // initial guess
-    int splitPrefixLength = commonPrefixLength;
+    // Use binary search to find where the next bit differs.
+    // Specifically, we are looking for the highest object that
+    // shares more than commonPrefix bits with the first one.
+    size_t splitIndex = firstIndex;
+    size_t step = lastIndex - firstIndex;
 
-    for (size_t i = firstIndex + 1; i < lastIndex; i++) {
-        const int currentPrefixLength = __builtin_clzll(firstCode ^ particles[i].morton_code) / SPACE_DIMENSIONS;
-        if (currentPrefixLength > splitPrefixLength) {
-            splitIndex = i;
-            splitPrefixLength = currentPrefixLength;
+    do {
+        step = (step + 1) >> 1;
+        const size_t newSplitIndex = splitIndex + step;
+        if (newSplitIndex < lastIndex) {
+            const int newSplitPrefixLength = __builtin_clzll(firstCode ^ particles[newSplitIndex].morton_code);
+            if (newSplitPrefixLength > commonPrefixLength) {
+                splitIndex = newSplitIndex;
+            }
         }
-    }
+
+    } while (step > 1);
 
     return splitIndex;
 }
 
-void computeBoundingBox(BarnesHutNode& node, const Particle& particle) {
-    for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-        // FIXME: compute actual bounding box
-        node.boundingBoxMin[d] = 0;
-        node.boundingBoxMax[d] = 0;
-    }
-}
 void mergeBoundingBoxes(BarnesHutNode& parentNode, const BarnesHutNode& leftChildNode, const BarnesHutNode& rightChildNode) {
     for (int d = 0; d < SPACE_DIMENSIONS; d++) {
         parentNode.boundingBoxMin[d] = std::min(leftChildNode.boundingBoxMin[d], rightChildNode.boundingBoxMin[d]);
@@ -134,43 +140,50 @@ void aggregateMassAndCOM(BarnesHutNode& parentNode, const BarnesHutNode& leftChi
     }
 }
 
-size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::vector<Particle>& particles, const size_t firstIndex, const size_t lastIndex) {
+void createLeafNode(BarnesHutNode& node, const Particle& particle) {
+    node.particleCount = 1;
+    node.mass = particle.mass;
+    node.childrenIndex[BarnesHutNode::LEFT] = NO_CHILDREN;
+    node.childrenIndex[BarnesHutNode::RIGHT] = NO_CHILDREN;
+    for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+        node.COM[d] = particle.position[d];
+        node.boundingBoxMin[d] = particle.position[d];
+        node.boundingBoxMax[d] = particle.position[d];
+    }
+}
 
+void createInnerNode(std::vector<BarnesHutNode>& barnesHutTree, const size_t parentIndex, const size_t leftChildIndex, const size_t rightChildIndex) {
+    barnesHutTree[parentIndex].childrenIndex[BarnesHutNode::LEFT] = leftChildIndex;
+    barnesHutTree[parentIndex].childrenIndex[BarnesHutNode::RIGHT] = rightChildIndex;
+
+    // Aggregate data from children
+    barnesHutTree[parentIndex].particleIndex = NOT_A_LEAF;
+    barnesHutTree[parentIndex].particleCount = barnesHutTree[leftChildIndex].particleCount + barnesHutTree[rightChildIndex].particleCount;
+    aggregateMassAndCOM(barnesHutTree[parentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
+    mergeBoundingBoxes(barnesHutTree[parentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
+}
+
+size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::vector<Particle>& particles, const size_t firstIndex, const size_t lastIndex) {
     // Create a new node
     const size_t currentIndex = barnesHutTree.size();
     barnesHutTree.emplace_back();
 
     // Base case: leaf node
     if (firstIndex == lastIndex) {
-        barnesHutTree[currentIndex].particleIndex = firstIndex;
-        barnesHutTree[currentIndex].particleCount = 1;
-        barnesHutTree[currentIndex].mass = particles[firstIndex].mass;
-        barnesHutTree[currentIndex].childIndex = NO_CHILDREN;
-        for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-            barnesHutTree[currentIndex].COM[d] = particles[firstIndex].position[d];
-        }
-
-        computeBoundingBox(barnesHutTree[currentIndex], particles[firstIndex]);
-
         PRINT_DEBUG_INFO("Leaf node %lu for particle %lu\n", currentIndex, firstIndex);
+        createLeafNode(barnesHutTree[currentIndex], particles[firstIndex]);
         return currentIndex;
     }
 
     // Internal node: find split position
     const size_t splitIndex = findMaxCommonPrefixPosition(particles, firstIndex, lastIndex);
 
-    // Build children recursively
-    barnesHutTree[currentIndex].childIndex = barnesHutTree.size();
+    // Build inner nodes recursively
     const size_t leftChildIndex = buildTreeRecursive(barnesHutTree, particles, firstIndex, splitIndex);
     const size_t rightChildIndex = buildTreeRecursive(barnesHutTree, particles, splitIndex + 1, lastIndex);
     PRINT_DEBUG_INFO("Node %lu split at %lu\t LEFT(%lu, %lu)\tRIGHT(%lu, %lu)\t|\tLeftNode: %lu\tRightNode: %lu\n", currentIndex, splitIndex, firstIndex, splitIndex, splitIndex + 1, lastIndex, leftChildIndex, rightChildIndex);
 
-
-    // Aggregate data from children
-    barnesHutTree[currentIndex].particleIndex = NOT_A_LEAF; // Not a leaf
-    barnesHutTree[currentIndex].particleCount = barnesHutTree[leftChildIndex].particleCount + barnesHutTree[rightChildIndex].particleCount;
-    aggregateMassAndCOM(barnesHutTree[currentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
-    mergeBoundingBoxes(barnesHutTree[currentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
+    createInnerNode(barnesHutTree, currentIndex, leftChildIndex, rightChildIndex);
 
     return currentIndex;
 }
@@ -194,13 +207,13 @@ void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
     for (size_t i = 0; i < tree.size(); i++) {
         const BarnesHutNode& node = tree[i];
         std::cout << "[" << std::setw(3) << i
-                          << "] mass=" << std::defaultfloat << std::setw(3) << node.mass
+                          << "] mass=" << std::defaultfloat << std::setw(6) << node.mass
                           << ", COM=(" << std::fixed << std::setprecision(5) << node.COM[0];
                 for (int d = 1; d < SPACE_DIMENSIONS; d++) {
                     std::cout << ", " << std::fixed << std::setprecision(5) << node.COM[d];
                 }
                 std::cout << "), \tparticleCount=" << std::setw(3) << node.particleCount
-                          << ", childIndex=" << std::setw(5) << node.childIndex
+                          // << ", childIndex=" << std::setw(5) << node.childIndex
                           << ", particleIndex=" << std::setw(5) << node.particleIndex << "\n";
     }
     std::cout << "=====================================\n" << std::endl;
@@ -215,15 +228,15 @@ void printParticles(const std::vector<Particle>& particles) {
 }
 
 int main() {
-    constexpr size_t nParticles = 10;
+    constexpr size_t nParticles = MAX_PARTICLES;
+
     std::vector<Particle> particles = randomParticles(nParticles);
     sortParticlesByMortonCode(particles);
-
-    printParticles(particles);
-
     const auto barnesHutTree = buildLinearTree(particles);
 
-    printBarnesHutTree(barnesHutTree);
+
+    //printParticles(particles);
+    // printBarnesHutTree(barnesHutTree);
 
     return 0;
 }

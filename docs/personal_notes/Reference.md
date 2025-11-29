@@ -7,6 +7,7 @@
 - [MPI Barnes-Hut](https://www.cs.utexas.edu/~rossbach/cs380p/lab/bh-submission-cs380p.html)
 - [Fast N-Body Simulation with CUDA](https://developer.nvidia.com/gpugems/gpugems3/part-v-physics-simulation/chapter-31-fast-n-body-simulation-cuda)
 - [Fast Hierarchical Methods for the N-body Problem, Part 1](https://people.eecs.berkeley.edu/~demmel/cs267/lecture26/lecture26.html)
+- [**Thinking Parallel, Part III: Tree Construction on the GPU**](https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/)
 
 # MPI References
 - [MPI IO](https://www.cscs.ch/fileadmin/user_upload/contents_publications/tutorials/fast_parallel_IO/MPI-IO_NS.pdf)
