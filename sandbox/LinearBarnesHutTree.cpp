@@ -119,14 +119,12 @@ void computeBoundingBox(BarnesHutNode& node, const Particle& particle) {
         node.boundingBoxMax[d] = 0;
     }
 }
-
 void mergeBoundingBoxes(BarnesHutNode& parentNode, const BarnesHutNode& leftChildNode, const BarnesHutNode& rightChildNode) {
     for (int d = 0; d < SPACE_DIMENSIONS; d++) {
         parentNode.boundingBoxMin[d] = std::min(leftChildNode.boundingBoxMin[d], rightChildNode.boundingBoxMin[d]);
         parentNode.boundingBoxMax[d] = std::max(leftChildNode.boundingBoxMax[d], rightChildNode.boundingBoxMax[d]);
     }
 }
-
 void aggregateMassAndCOM(BarnesHutNode& parentNode, const BarnesHutNode& leftChildNode, const BarnesHutNode& rightChildNode) {
     parentNode.mass = leftChildNode.mass + rightChildNode.mass;
 
@@ -154,6 +152,7 @@ size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::
 
         computeBoundingBox(barnesHutTree[currentIndex], particles[firstIndex]);
 
+        PRINT_DEBUG_INFO("Leaf node %lu for particle %lu\n", currentIndex, firstIndex);
         return currentIndex;
     }
 
@@ -164,6 +163,8 @@ size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::
     barnesHutTree[currentIndex].childIndex = barnesHutTree.size();
     const size_t leftChildIndex = buildTreeRecursive(barnesHutTree, particles, firstIndex, splitIndex);
     const size_t rightChildIndex = buildTreeRecursive(barnesHutTree, particles, splitIndex + 1, lastIndex);
+    PRINT_DEBUG_INFO("Node %lu split at %lu\t LEFT(%lu, %lu)\tRIGHT(%lu, %lu)\t|\tLeftNode: %lu\tRightNode: %lu\n", currentIndex, splitIndex, firstIndex, splitIndex, splitIndex + 1, lastIndex, leftChildIndex, rightChildIndex);
+
 
     // Aggregate data from children
     barnesHutTree[currentIndex].particleIndex = NOT_A_LEAF; // Not a leaf
@@ -173,7 +174,6 @@ size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::
 
     return currentIndex;
 }
-
 /*
 *he resize() method (and passing argument to constructor is equivalent to that) will insert or delete appropriate number of elements to the vector to make it given size (it has optional second argument to specify their value). It will affect the size(), iteration will go over all those elements, push_back will insert after them and you can directly access them using the operator[].
 The reserve() method only allocates memory, but leaves it uninitialized. It only affects capacity(), but size() will be unchanged. There is no value for the objects, because nothing is added to the vector. If you then insert the elements, no reallocation will happen, because it was done in advance, but that's the only effect.
@@ -190,6 +190,7 @@ std::vector<BarnesHutNode> buildLinearTree(const std::vector<Particle>& particle
 }
 
 void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
+    std::cout << "\n============== BARNES HUT TREE =======================" << std::endl;
     for (size_t i = 0; i < tree.size(); i++) {
         const BarnesHutNode& node = tree[i];
         std::cout << "[" << std::setw(3) << i
@@ -202,15 +203,15 @@ void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
                           << ", childIndex=" << std::setw(5) << node.childIndex
                           << ", particleIndex=" << std::setw(5) << node.particleIndex << "\n";
     }
+    std::cout << "=====================================\n" << std::endl;
 }
-
 void printParticles(const std::vector<Particle>& particles) {
-    std::cout << "\n=====================================\n" << std::endl;
+    std::cout << "\n================ PARTICLES =====================" << std::endl;
     for (size_t i = 0; i < particles.size(); i++) {
         std::bitset<64> mc_bits(particles[i].morton_code);
         std::cout << "[" << std::setw(3) << i << "] " << mc_bits << std::endl;
     }
-    std::cout << "\n=====================================\n" << std::endl;
+    std::cout << "=====================================\n" << std::endl;
 }
 
 int main() {
@@ -218,9 +219,10 @@ int main() {
     std::vector<Particle> particles = randomParticles(nParticles);
     sortParticlesByMortonCode(particles);
 
-    auto barnesHutTree = buildLinearTree(particles);
-
     printParticles(particles);
+
+    const auto barnesHutTree = buildLinearTree(particles);
+
     printBarnesHutTree(barnesHutTree);
 
     return 0;
