@@ -3,38 +3,37 @@
 //
 
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <vector>
 #include <array>
 #include <stack>
 #include <algorithm>
+#include <cfloat>
 
 #include "debug/print_debug.h"
 #include "utils/random_utils.h"
 
 #define SPACE_DIMENSIONS 3
-#define MAX_PARTICLES 100
+#define N_PARTICLES 10000
 #define NO_CHILDREN (-1)
 
 
 // TODO set with proper values
-#define SIMULATION_ITERATIONS 10 //(25*60*1) // 25 FPS for 1 minutes
+
+#define VISUALIZATION_PRECISION 5 // Output every VISUALIZATION_PRECISION iterations
+#define SIMULATION_ITERATIONS (25*30 * VISUALIZATION_PRECISION) //(25*60*1) // 25 FPS for 1 minutes
+// #define SIMULATION_ITERATIONS 1
 #define THETA 0.5 // Opening angle threshold
-#define SOFTENING_EPSILON 1e-3 // Softening factor to avoid singularities
+#define SOFTENING_EPSILON 0.1 // Softening factor to avoid singularities
 #define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
-#define DELTA_TIME 0.01 // Arbitrary units
+#define DELTA_TIME 1e-5 // Arbitrary units
 
 struct Particle {
     double position[SPACE_DIMENSIONS]; // center of mass
     double velocity[SPACE_DIMENSIONS];
     double mass;
     uint64_t morton_code;
-
-    enum Coordinate {
-        X = 0,
-        Y = 1,
-        Z = 2
-    };
 };
 
 struct BarnesHutNode {
@@ -59,15 +58,18 @@ std::vector<Particle> randomParticles(const size_t nParticles) {
     std::vector<Particle> particles(nParticles);
     for (int i = 0; i < nParticles; i++) {
         particles[i] = {
-            random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
-            //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
-            0,0,0,
-            //random_double(1.0, 1.0)};
-            1.0};
+/*random init positions*/           random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
+/*random init velocity*/            //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
+/*no init velocity*/                0,0,0,
+/*random init mass*/                //random_double(1.0, 10.0)};
+/*fixed mass=1.0*/                  1.0};
     }
 
     return particles;
 }
+
+
+
 inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
     auto splitBy2 = [](const uint32_t _v) {
         uint64_t v = _v & 0x1FFFFF; // we only look at the first 21 bits
@@ -85,22 +87,71 @@ inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
     }
     return morton_code;
 }
-void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles) {
+
+struct Bounds3D {
+    double min[SPACE_DIMENSIONS];
+    double max[SPACE_DIMENSIONS];
+};
+
+static inline Bounds3D findParticlesBoundingBoxPerAxis(const std::vector<Particle>& particles) {
+    Bounds3D bounds_3d{};
+
+    for (int d = 0; d < SPACE_DIMENSIONS; ++d) {
+        bounds_3d.min[d] = DBL_MAX;
+        bounds_3d.max[d] = -DBL_MAX;
+    }
+    for (const auto& p : particles) {
+        for (int d = 0; d < SPACE_DIMENSIONS; ++d) {
+            bounds_3d.min[d] = std::min(bounds_3d.min[d], p.position[d]);
+            bounds_3d.max[d] = std::max(bounds_3d.max[d], p.position[d]);
+        }
+    }
+    // Guard against degenerate axes
+    for (int d = 0; d < SPACE_DIMENSIONS; ++d) {
+        if (bounds_3d.max[d] <= bounds_3d.min[d]) {
+            bounds_3d.max[d] = bounds_3d.min[d] + 1e-12;
+        }
+    }
+
+    /*PRINT_DEBUG_INFO("Bounding box size: x:[%f, %f]\t y:[%f, %f]\t z:[%f, %f]\n",
+                     bounds_3d.min[0], bounds_3d.max[0],
+                     bounds_3d.min[1], bounds_3d.max[1],
+                     bounds_3d.min[2], bounds_3d.max[2]);
+    */
+    return bounds_3d;
+}
+
+void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles)  {
+    // PRINT_DEBUG_INFO("Calculating per-axis bounding box...\n");
+    const Bounds3D bb = findParticlesBoundingBoxPerAxis(particles);
+    // PRINT_DEBUG_INFO("Bounding box calculation done\n");
+
+    const uint32_t maxCoord = (1u << 21) - 1u;
+
     for (auto& particle : particles) {
-        // Fixme = normalize discrete positions based on current simulation space bounding box. Currently assuming positions are normalized [0,1)
         uint32_t discretized_position[SPACE_DIMENSIONS];
-        for (int i = 0; i < SPACE_DIMENSIONS; i++) {
-            discretized_position[i] = static_cast<uint32_t>(particle.position[i] * ((1<<21) -1));
+        for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+            const double denom = bb.max[d] - bb.min[d];
+            double t = (particle.position[d] - bb.min[d]) / denom;
+            // Clamp to \[0,1] to be robust to tiny numeric drift
+            t = std::min(1.0, std::max(0.0, t));
+            discretized_position[d] = static_cast<uint32_t>(t * maxCoord);
         }
         particle.morton_code = morton3D_u64(discretized_position);
     }
 
-    PRINT_DEBUG_INFO("Sorting particles...\n");
-    std::sort(particles.begin(), particles.end(), //TODO use radix sort
-    [](const Particle& a, const Particle& b) {return a.morton_code < b.morton_code;});
-    PRINT_DEBUG_INFO("Sorting COMPLETED.\n");
-
+    // PRINT_DEBUG_INFO("Sorting particles...\n");
+    std::sort(particles.begin(), particles.end(),
+        [](const Particle& a, const Particle& b) {
+            if (a.morton_code != b.morton_code) return a.morton_code < b.morton_code;
+            // Tie-breaker for identical Morton codes: lexicographic by position
+            if (a.position[0] != b.position[0]) return a.position[0] < b.position[0];
+            if (a.position[1] != b.position[1]) return a.position[1] < b.position[1];
+            return a.position[2] < b.position[2];
+        });
+    // PRINT_DEBUG_INFO("Sorting COMPLETED.\n");
 }
+
 size_t findMaxCommonPrefixPosition(const std::vector<Particle>& particles, const size_t firstIndex, const size_t lastIndex) {
     // Find the split position that maximizes the common prefix
     // This determines how to partition the range [first, last)
@@ -138,6 +189,11 @@ size_t findMaxCommonPrefixPosition(const std::vector<Particle>& particles, const
         }
 
     } while (step > 1);
+
+    // Force balanced split if tree becomes too skewed
+    if (splitIndex - firstIndex < (lastIndex - firstIndex) / 10) {
+        return (firstIndex + lastIndex) / 2; // Fallback to midpoint
+    }
 
     return splitIndex;
 }
@@ -242,11 +298,12 @@ std::vector<BarnesHutNode> buildBarnesHutTree(std::vector<Particle>& particles) 
 }
 
 
-inline double computeSquaredDistance(const Particle& particle, const BarnesHutNode& node, double distance_along_axis[SPACE_DIMENSIONS]) {
+inline double computeSquaredDistance(const Particle& particle, const BarnesHutNode& node, double delta[SPACE_DIMENSIONS]) {
     double distSquared = 0.0;
     for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-        distance_along_axis[d] = node.COM[d] - particle.position[d];
-        distSquared += distance_along_axis[d] * distance_along_axis[d];
+        // delta[d] = particle.position[d] - node.COM[d];
+        delta[d] = node.COM[d] - particle.position[d];
+        distSquared += delta[d] * delta[d];
     }
     return distSquared;
 }
@@ -299,7 +356,7 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
         }
     }
 
-    PRINT_DEBUG_INFO("*** Max stack size: %lu\t|\ttotal elements: %lu\n", maxStackSize, totalElements);
+    // PRINT_DEBUG_INFO("*** Max stack size: %lu\t|\ttotal elements: %lu\n", maxStackSize, totalElements);
 
     return acceleration;
 }
@@ -355,27 +412,40 @@ void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
     for (size_t i = 0; i < tree.size(); i++) {
         const BarnesHutNode& node = tree[i];
         std::cout << "[" << std::setw(  static_cast<int>(std::log10(tree.size()))+1) << i
-                          << "] mass: " << std::defaultfloat << std::setw(static_cast<int>(std::log10(MAX_PARTICLES))+1) << node.mass
+                          << "] mass: " << std::defaultfloat << std::setw(static_cast<int>(std::log10(N_PARTICLES))+1) << node.mass
                           << "\t|\tCOM: (" << std::fixed << std::setprecision(5) << node.COM[0];
                 for (int d = 1; d < SPACE_DIMENSIONS; d++) {
                     std::cout << ", " << std::fixed << std::setprecision(5) << node.COM[d];
                 }
                 std::cout << ") \t|\tparticleCount:" << std::setw(3) << node.particleCount
-                          << "\t|\tchildrenIndex:[LEFT:" << std::setw(static_cast<int>(std::log10(MAX_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::LEFT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::LEFT]))
-                            << ", RIGHT:" << std::setw(static_cast<int>(std::log10(MAX_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::RIGHT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::RIGHT])) << "]\n";
+                          << "\t|\tchildrenIndex:[LEFT:" << std::setw(static_cast<int>(std::log10(N_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::LEFT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::LEFT]))
+                            << ", RIGHT:" << std::setw(static_cast<int>(std::log10(N_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::RIGHT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::RIGHT])) << "]\n";
                           // << ", particleIndex=" << std::setw(5) << (node.particleIndex  == NOT_A_LEAF ? "N/A" : std::to_string(node.particleIndex)) << "\n";
     }
     std::cout << "=====================================================================================================\n" << std::endl;
 }
 
+void writeParticlesToFile(const std::vector<Particle>& particles, const std::string& filename) {
+    const std::filesystem::path outPath = std::filesystem::path(PROJECT_SOURCE_DIR) / filename;
+    std::filesystem::create_directories(outPath.parent_path());
+
+    std::ofstream out(outPath, std::ios::binary);
+    uint32_t count = particles.size();
+    out.write(reinterpret_cast<char*>(&count), sizeof(count));
+    out.write(reinterpret_cast<const char*>(particles.data()), count * sizeof(Particle));
+    out.close();
+}
 //fixme: complete simulation loop with energy conservation checks
 //fixme: currently simulation is based on fixed number of iterations, independently from time step (is it ok?)
 void runSimulation(std::vector<Particle>& particles, const unsigned long iterations) {
+    // PRINT_DEBUG_INFO("Build BarnesHut tree...\n");
     auto barnesHutTree = buildBarnesHutTree(particles);
+    // PRINT_DEBUG_INFO("BarnesHut tree built\n");
 
-    PRINT_DEBUG_INFO("Init Leapfrog...\n");
+
+    // PRINT_DEBUG_INFO("Init Leapfrog...\n");
     initLeapfrogVelocityKick(barnesHutTree, particles);
-    PRINT_DEBUG_INFO("Leapfrog initialized\n\n-------\n");
+    // PRINT_DEBUG_INFO("Leapfrog initialized\n\n-------\n");
     // From now on, positions are at integer times: t = 0, dt, 2dt, ...
     // And velocities are at half-integer times: t = dt/2, 3dt/2, 5dt/2, ...
 
@@ -383,26 +453,41 @@ void runSimulation(std::vector<Particle>& particles, const unsigned long iterati
 
     // ===================== MAIN SIMULATION LOOP =====================
     double time = 0.0;
-    for (unsigned long i = 1; i <= iterations; i++) {
+    unsigned int output_counter = 0;
+    for (unsigned long i = 0; i < iterations; i++) {
         // Drift: update positions x^(n) -> x^(n+1)
 
-        PRINT_DEBUG_INFO("%lu) --> Leapfrog positions drift...\n", i);
+        // PRINT_DEBUG_INFO("%lu) --> Leapfrog positions drift...\n", i);
         leapfrogPositionDrift(particles);
-        PRINT_DEBUG_INFO("%lu) --> Leapfrog position done\n", i);
+        // PRINT_DEBUG_INFO("%lu) --> Leapfrog position done\n", i);
 
-        PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree...\n", i);
+        // PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree...\n", i);
         rebuildBarnesHutTree(barnesHutTree, particles);
-        PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree done\n", i);
+        // PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree done\n", i);
 
 
-        PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick...\n", i);
+        // PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick...\n", i);
         // Kick: update velocities v^(n+1/2) -> v^(n+3/2)
         leapfrogVelocityKick(barnesHutTree, particles);
-        PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick done\n\n", i);
+        // PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick done\n\n", i);
 
         time += DELTA_TIME;
 
-        std::cout << "#" << i << " iteration finished: " << static_cast<double>(i) / static_cast<double>(iterations) * 100.0 << "%\n" << std::endl;
+        std::cout << "----------\n#" << i+1 << " iteration finished: " << static_cast<double>(i+1) / static_cast<double>(iterations) * 100.0 << "%" << std::endl;
+
+        if (i % VISUALIZATION_PRECISION == 0) {
+            const int width = static_cast<int>(log10(SIMULATION_ITERATIONS)) + 1;
+            const std::string iter_str = std::to_string(output_counter);
+            const std::string padded_iter_number = std::string(std::max(0, width - static_cast<int>(iter_str.size())), '0') + iter_str;
+            std::string simulation_name = "linear_barnes_hut_tree";
+            std::string filename = "output/local/simulations/" + simulation_name + "/particles_iteration_" + padded_iter_number + ".bin";
+
+            std::cout << "Write particles to file " << filename << std::endl;
+
+
+            writeParticlesToFile(particles, filename);
+            output_counter++;
+      }
     }
 }
 
@@ -455,7 +540,7 @@ void printParticles(const std::vector<Particle>& particles) {
 }
 
 int main() {
-    constexpr size_t nParticles = MAX_PARTICLES;
+    constexpr size_t nParticles = N_PARTICLES;
 
     std::vector<Particle> particles = randomParticles(nParticles);
     runSimulation(particles, SIMULATION_ITERATIONS);

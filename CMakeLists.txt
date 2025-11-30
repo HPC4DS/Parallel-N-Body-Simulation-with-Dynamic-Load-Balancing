@@ -29,6 +29,8 @@ set(USE_OPENMP ON)
 option(REMOTE_RUN "Configurations for remote run" ON)
 option(BUILD_TESTING "Enable testing" OFF)
 
+add_compile_definitions(PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 if (REMOTE_RUN)
     add_compile_definitions(HPC_RUN)
 endif ()
