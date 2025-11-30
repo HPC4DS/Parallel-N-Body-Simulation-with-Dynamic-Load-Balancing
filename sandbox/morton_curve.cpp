@@ -114,7 +114,7 @@ std::vector<Particle> generate_gaussian_clusters(size_t N, int numClusters) {
     return out;
 }
 
-void sortParticlesByMortonCode(std::vector<Particle>& particles) {
+void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles) {
     // struct MortonParticle {uint32_t code; Particle particle;};
     // std::vector<MortonParticle> morton_particles;
     // morton_particles.reserve(particles.size());
@@ -178,7 +178,7 @@ int main() {
     constexpr size_t nParticles = 10;
     std::vector<Particle> particles = randomParticles(nParticles);
 
-    sortParticlesByMortonCode(particles);
+    computeAndSortParticlesByMortonCode(particles);
 
     std::cout << "\n=====================================\n" << std::endl;
     for (const auto& particle : particles) {
@@ -210,7 +210,7 @@ int old_main () {
     //     std::cout << "Particle: (" << particle.x << ", " << particle.y << ", " << particle.z << ")\n";
     // }
 
-    sortParticlesByMortonCode(particles);
+    computeAndSortParticlesByMortonCode(particles);
 
     // std::cout << "\n***\nAFTER morton sorting\n***" << std::endl;
     // for (auto particle: particles) {

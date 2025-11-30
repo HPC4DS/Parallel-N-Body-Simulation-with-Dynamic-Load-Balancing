@@ -5,23 +5,28 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <array>
+#include <stack>
+#include <algorithm>
 
 #include "debug/print_debug.h"
 #include "utils/random_utils.h"
 
 #define SPACE_DIMENSIONS 3
-#define MAX_PARTICLES 1000000
+#define MAX_PARTICLES 10
 #define NO_CHILDREN (-1)
 
 
 // TODO set with proper values
-#define SIMULATION_ITERATIONS 1
-#define THETA 0.5
-#define SOFTENING_EPSILON 0.01
+#define SIMULATION_ITERATIONS 1 //(25*60*1) // 25 FPS for 1 minutes
+#define THETA 0.5 // Opening angle threshold
+#define SOFTENING_EPSILON 1e-3 // Softening factor to avoid singularities
 #define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
+#define DELTA_TIME 0.01 // Arbitrary units
 
 struct Particle {
     double position[SPACE_DIMENSIONS]; // center of mass
+    double velocity[SPACE_DIMENSIONS];
     double mass;
     uint64_t morton_code;
 
@@ -38,9 +43,10 @@ struct BarnesHutNode {
     double boundingBoxMin[SPACE_DIMENSIONS];
     double boundingBoxMax[SPACE_DIMENSIONS];
     size_t childrenIndex[2]; // Indices of child nodes (NO_CHILDREN if leaf)
+    const Particle* p_particle;
+    double squaredDiagonalLength; // Length of the bounding box diagonal
 
     // Fixme these may be redundant
-    bool isLeaf; // Index into particles array (NOT_A_LEAF if internal node)
     size_t particleCount; // Number of particles (1 for leaves, sum for internal nodes)
 
     enum Children {
@@ -52,10 +58,13 @@ struct BarnesHutNode {
 std::vector<Particle> randomParticles(const size_t nParticles) {
     std::vector<Particle> particles(nParticles);
     for (int i = 0; i < nParticles; i++) {
-        particles[i] = {random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0), 1.0};
+        particles[i] = {random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
+                        //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
+                        0,0,0,
+                        random_double(1.0, 10.0)};
     }
 
-    return std::move(particles);
+    return particles;
 }
 inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
     auto splitBy2 = [](const uint32_t _v) {
@@ -74,7 +83,7 @@ inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
     }
     return morton_code;
 }
-void sortParticlesByMortonCode(std::vector<Particle>& particles) {
+void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles) {
     for (auto& particle : particles) {
         // assuming positions are normalized [0,1)
         uint32_t discretized_position[SPACE_DIMENSIONS];
@@ -85,7 +94,7 @@ void sortParticlesByMortonCode(std::vector<Particle>& particles) {
     }
 
     PRINT_DEBUG_INFO("Sorting particles...\n");
-    std::sort(particles.begin(), particles.end(),
+    std::sort(particles.begin(), particles.end(), //TODO use radix sort
     [](const Particle& a, const Particle& b) {return a.morton_code < b.morton_code;});
     PRINT_DEBUG_INFO("Sorting COMPLETED.\n");
 
@@ -131,11 +140,20 @@ size_t findMaxCommonPrefixPosition(const std::vector<Particle>& particles, const
     return splitIndex;
 }
 
+inline double computeBoundingBoxSquaredDiagonal(const BarnesHutNode& node) {
+    double diagSquared = 0.0;
+    for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+        const double side = node.boundingBoxMax[d] - node.boundingBoxMin[d];
+        diagSquared += side * side;
+    }
+    return diagSquared;
+}
 void mergeBoundingBoxes(BarnesHutNode& parentNode, const BarnesHutNode& leftChildNode, const BarnesHutNode& rightChildNode) {
     for (int d = 0; d < SPACE_DIMENSIONS; d++) {
         parentNode.boundingBoxMin[d] = std::min(leftChildNode.boundingBoxMin[d], rightChildNode.boundingBoxMin[d]);
         parentNode.boundingBoxMax[d] = std::max(leftChildNode.boundingBoxMax[d], rightChildNode.boundingBoxMax[d]);
     }
+    parentNode.squaredDiagonalLength = computeBoundingBoxSquaredDiagonal(parentNode);
 }
 void aggregateMassAndCOM(BarnesHutNode& parentNode, const BarnesHutNode& leftChildNode, const BarnesHutNode& rightChildNode) {
     parentNode.mass = leftChildNode.mass + rightChildNode.mass;
@@ -145,6 +163,7 @@ void aggregateMassAndCOM(BarnesHutNode& parentNode, const BarnesHutNode& leftChi
         parentNode.COM[d] = (leftChildNode.mass * leftChildNode.COM[d] + rightChildNode.mass * rightChildNode.COM[d]) / parentNode.mass;
     }
 }
+
 
 void createLeafNode(BarnesHutNode& node, const Particle& particle) {
     node.particleCount = 1;
@@ -156,7 +175,8 @@ void createLeafNode(BarnesHutNode& node, const Particle& particle) {
         node.boundingBoxMin[d] = particle.position[d];
         node.boundingBoxMax[d] = particle.position[d];
     }
-    node.isLeaf = true;
+    node.squaredDiagonalLength = 0.0; // Single particle, no size
+    node.p_particle = &particle;
 }
 
 void createInnerNode(std::vector<BarnesHutNode>& barnesHutTree, const size_t parentIndex, const size_t leftChildIndex, const size_t rightChildIndex) {
@@ -164,13 +184,13 @@ void createInnerNode(std::vector<BarnesHutNode>& barnesHutTree, const size_t par
     barnesHutTree[parentIndex].childrenIndex[BarnesHutNode::RIGHT] = rightChildIndex;
 
     // Aggregate data from children
-    barnesHutTree[parentIndex].isLeaf = false;
+    barnesHutTree[parentIndex].p_particle = nullptr; // not a leaf
     barnesHutTree[parentIndex].particleCount = barnesHutTree[leftChildIndex].particleCount + barnesHutTree[rightChildIndex].particleCount;
     aggregateMassAndCOM(barnesHutTree[parentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
     mergeBoundingBoxes(barnesHutTree[parentIndex], barnesHutTree[leftChildIndex], barnesHutTree[rightChildIndex]);
 }
 
-size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::vector<Particle>& particles, const size_t firstIndex, const size_t lastIndex) {
+size_t buildBarnesHutTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::vector<Particle>& particles, const size_t firstIndex, const size_t lastIndex) {
     // Create a new node
     const size_t currentIndex = barnesHutTree.size();
     barnesHutTree.emplace_back();
@@ -186,127 +206,222 @@ size_t buildTreeRecursive(std::vector<BarnesHutNode>& barnesHutTree, const std::
     const size_t splitIndex = findMaxCommonPrefixPosition(particles, firstIndex, lastIndex);
 
     // Build inner nodes recursively
-    const size_t leftChildIndex = buildTreeRecursive(barnesHutTree, particles, firstIndex, splitIndex);
-    const size_t rightChildIndex = buildTreeRecursive(barnesHutTree, particles, splitIndex + 1, lastIndex);
+    const size_t leftChildIndex = buildBarnesHutTreeRecursive(barnesHutTree, particles, firstIndex, splitIndex);
+    const size_t rightChildIndex = buildBarnesHutTreeRecursive(barnesHutTree, particles, splitIndex + 1, lastIndex);
     // PRINT_DEBUG_INFO("Node %lu split at %lu\t LEFT(%lu, %lu)\tRIGHT(%lu, %lu)\t|\tLeftNode: %lu\tRightNode: %lu\n", currentIndex, splitIndex, firstIndex, splitIndex, splitIndex + 1, lastIndex, leftChildIndex, rightChildIndex);
 
     createInnerNode(barnesHutTree, currentIndex, leftChildIndex, rightChildIndex);
 
     return currentIndex;
 }
+
+void rebuildBarnesHutTree(std::vector<BarnesHutNode>& barnesHutTree, std::vector<Particle>& particles) {
+    computeAndSortParticlesByMortonCode(particles);
+
+    barnesHutTree.clear();
+    buildBarnesHutTreeRecursive(barnesHutTree, particles, 0, particles.size() - 1);
+}
+
 /*
 *he resize() method (and passing argument to constructor is equivalent to that) will insert or delete appropriate number of elements to the vector to make it given size (it has optional second argument to specify their value). It will affect the size(), iteration will go over all those elements, push_back will insert after them and you can directly access them using the operator[].
 The reserve() method only allocates memory, but leaves it uninitialized. It only affects capacity(), but size() will be unchanged. There is no value for the objects, because nothing is added to the vector. If you then insert the elements, no reallocation will happen, because it was done in advance, but that's the only effect.
 */
-std::vector<BarnesHutNode> buildLinearTree(const std::vector<Particle>& particles) {
+std::vector<BarnesHutNode> buildBarnesHutTree(std::vector<Particle>& particles) {
+    computeAndSortParticlesByMortonCode(particles);
+
     std::vector<BarnesHutNode> barnesHutTree;
     // Preallocate memory (with reserve() the size remains 0, but capacity is set)
     barnesHutTree.reserve(2 * particles.size()); // Maximum number of nodes in a binary tree (typically octree uses fewer)
 
     // Build tree recursively and flatten into array
-    buildTreeRecursive(barnesHutTree, particles, 0, particles.size() - 1);
+    buildBarnesHutTreeRecursive(barnesHutTree, particles, 0, particles.size() - 1);
 
     return barnesHutTree;
 }
 
 
-inline double computeDistance(const Particle& particle, const BarnesHutNode& node, double distance_along_axis[SPACE_DIMENSIONS]) {
+inline double computeSquaredDistance(const Particle& particle, const BarnesHutNode& node, double distance_along_axis[SPACE_DIMENSIONS]) {
     double distSquared = 0.0;
     for (int d = 0; d < SPACE_DIMENSIONS; d++) {
         distance_along_axis[d] = node.COM[d] - particle.position[d];
         distSquared += distance_along_axis[d] * distance_along_axis[d];
     }
-    return std::sqrt(distSquared);
+    return distSquared;
 }
 
-inline double cellSize(const BarnesHutNode& node) {
-    double size = 0.0;
-    for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-        size = std::max(size, node.boundingBoxMax[d] - node.boundingBoxMin[d]);
-    }
-    return size;
-}
 
-std::vector<double> computeForce(const std::vector<BarnesHutNode>& barnesHutTree, const Particle& particle, const size_t nodeIndex = 0) {
-    std::vector<double> forces(SPACE_DIMENSIONS, 0.0);
+std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<BarnesHutNode>& barnesHutTree, const Particle& particle, const size_t nodeIndex = 0) {
+    std::array<double, SPACE_DIMENSIONS> acceleration{0.0, 0.0, 0.0};
     std::stack<size_t> indexStack;
     indexStack.push(nodeIndex);
+
+    constexpr double theta2 = THETA * THETA;
+    constexpr double eps2 = SOFTENING_EPSILON * SOFTENING_EPSILON;
 
     while (!indexStack.empty()) {
         const size_t currentIndex = indexStack.top();
         indexStack.pop();
         const BarnesHutNode& currentNode = barnesHutTree[currentIndex];
 
-        double distance_along_axis[SPACE_DIMENSIONS];
-        const double distance = computeDistance(particle, currentNode, distance_along_axis);
+        double delta[SPACE_DIMENSIONS];
+        const double r2 = computeSquaredDistance(particle, currentNode, delta);
 
-        if (cellSize(currentNode) / distance < THETA || currentNode.isLeaf) {
-            // if (currentNode.isLeaf) {
-            //     PRINT_DEBUG_INFO("Calculating force from leaf %lu to particle\n", currentIndex);
-            // } else {
-            //     PRINT_DEBUG_INFO("SINGLE BODY APPROXIMATION: calculating force from inner node %lu to particle\n", currentIndex);
-            // }
-            // Treat this node as a single body, or it's a leaf node
-            // Avoid division by zero (self-interaction) fixme: this solution doesn't properly prevent self-interaction
-            if (distance > 0) {
-                const double forceMagnitude = GRAVITATIONAL_CONSTANT * (currentNode.mass * particle.mass) / (distance * distance + SOFTENING_EPSILON * SOFTENING_EPSILON);
+        const bool isLeafOtherParticle = (currentNode.p_particle != nullptr && currentNode.p_particle != &particle);
+        const bool open = ((r2 > 0.0) && (currentNode.squaredDiagonalLength < theta2 * r2));
+
+        if (open || isLeafOtherParticle) {
+            if (r2 > 0.0) {
+                // Acceleration magnitude: G * M / (r^2 + epsilon^2)^(3/2)
+                const double r2_soft = r2 + eps2;
+                const double inv_r3 = 1.0 / (r2_soft * std::sqrt(r2_soft));
+
+                const double accMagnitude = GRAVITATIONAL_CONSTANT * currentNode.mass * inv_r3;
                 for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-                    forces[d] += forceMagnitude * distance_along_axis[d] / distance;
+                    // Accumulate acceleration vector components
+                    acceleration[d] += accMagnitude * delta[d];
                 }
             }
         } else {
             // Traverse children
             for (auto childIndex : currentNode.childrenIndex) {
-                indexStack.push(childIndex);
+                if (childIndex != NO_CHILDREN) {
+                    indexStack.push(childIndex);
+                }
             }
         }
     }
 
-    return forces;
+    return acceleration;
 }
 
-void updateParticle(Particle& particle, const std::vector<double>& forces, const double timeStep) {
+
+void initLeapfrogVelocityKick(const std::vector<BarnesHutNode>& barnesHutTree, std::vector<Particle>& particles) {
+    // Single half-kick to get velocities to t = dt/2
+    constexpr double half_dt = 0.5 * DELTA_TIME;
+
+    for (auto& particle : particles) {
+        const auto acceleration = computeAcceleration(barnesHutTree, particle);
+
+        for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+            particle.velocity[d] += acceleration[d] * half_dt;
+        }
+    }
 
 }
+void leapfrogVelocityKick(const std::vector<BarnesHutNode>& barnesHutTree, std::vector<Particle>& particles) {
+    for (auto& particle : particles) {
+        //Fixme: for parallelization, compute force for individual particle vs compute in batches storing value in Particle.ax, Particle.ay, Particle.az ?
+        const auto acceleration = computeAcceleration(barnesHutTree, particle);
+
+        for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+            particle.velocity[d] += acceleration[d] * DELTA_TIME;
+        }
+    }
+}
+
+void leapfrogPositionDrift(std::vector<Particle>& particles) {
+    for (auto& particle : particles) {
+        for (int d = 0; d < SPACE_DIMENSIONS; d++) {
+            particle.position[d] += particle.velocity[d] * DELTA_TIME;
+        }
+    }
+
+    //TODO optimize (all over the source code) by removing for loop (?) and using SIMD operations (improve readability creating x, y , z, vx, vy, vz variables?)
+    /*
+     * What's the difference in performance in SIMD instruction grouping the operations above in a loop for all particles?
+     * E.g.:
+            #pragma omp parallel for simd
+            for i from 0 to N-1:
+                particles[i].x += dt * particles[i].vx
+                particles[i].y += dt * particles[i].vy
+                particles[i].z += dt * particles[i].vz
+     */
+}
+
+
 
 void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
     std::cout << "\n======================================== BARNES HUT TREE ============================================" << std::endl;
     for (size_t i = 0; i < tree.size(); i++) {
         const BarnesHutNode& node = tree[i];
-        std::cout << "[" << std::setw(3) << i
-                          << "] mass=" << std::defaultfloat << std::setw(log(MAX_PARTICLES)+1) << node.mass
-                          << ",\t|\tCOM=(" << std::fixed << std::setprecision(5) << node.COM[0];
+        std::cout << "[" << std::setw(  static_cast<int>(std::log10(tree.size()))+1) << i
+                          << "] mass: " << std::defaultfloat << std::setw(static_cast<int>(std::log10(MAX_PARTICLES))+1) << node.mass
+                          << "\t|\tCOM: (" << std::fixed << std::setprecision(5) << node.COM[0];
                 for (int d = 1; d < SPACE_DIMENSIONS; d++) {
                     std::cout << ", " << std::fixed << std::setprecision(5) << node.COM[d];
                 }
-                std::cout << ")\t|\tparticleCount=" << std::setw(3) << node.particleCount
-                          << "\t|\tchildrenIndex=[LEFT:" << std::setw(log(MAX_PARTICLES*2) +1) << (node.childrenIndex[BarnesHutNode::LEFT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::LEFT]))
-                            << ", RIGHT:" << std::setw(5) << (node.childrenIndex[BarnesHutNode::RIGHT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::RIGHT])) << "]\n";
+                std::cout << ") \t|\tparticleCount:" << std::setw(3) << node.particleCount
+                          << "\t|\tchildrenIndex:[LEFT:" << std::setw(static_cast<int>(std::log10(MAX_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::LEFT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::LEFT]))
+                            << ", RIGHT:" << std::setw(static_cast<int>(std::log10(MAX_PARTICLES * 2)) +2) << (node.childrenIndex[BarnesHutNode::RIGHT] == NO_CHILDREN ? "N/A" : std::to_string(node.childrenIndex[BarnesHutNode::RIGHT])) << "]\n";
                           // << ", particleIndex=" << std::setw(5) << (node.particleIndex  == NOT_A_LEAF ? "N/A" : std::to_string(node.particleIndex)) << "\n";
     }
     std::cout << "=====================================================================================================\n" << std::endl;
 }
 
-
+//fixme: complete simulation loop with energy conservation checks
+//fixme: currently simulation is based on fixed number of iterations, independently from time step (is it ok?)
 void runSimulation(std::vector<Particle>& particles, const unsigned long iterations) {
+    auto barnesHutTree = buildBarnesHutTree(particles);
+
+    initLeapfrogVelocityKick(barnesHutTree, particles);
+    // From now on, positions are at integer times: t = 0, dt, 2dt, ...
+    // And velocities are at half-integer times: t = dt/2, 3dt/2, 5dt/2, ...
+
+    //TODO compute initial energy to validate conservation through the simulation
+
+    // ===================== MAIN SIMULATION LOOP =====================
+    double time = 0.0;
     for (unsigned long i = 0; i < iterations; i++) {
-        sortParticlesByMortonCode(particles);
-        const auto barnesHutTree = buildLinearTree(particles);
+        // Drift: update positions x^(n) -> x^(n+1)
+        leapfrogPositionDrift(particles);
+
+        rebuildBarnesHutTree(barnesHutTree, particles);
+
+        // Kick: update velocities v^(n+1/2) -> v^(n+3/2)
+        leapfrogVelocityKick(barnesHutTree, particles);
+
+        time += DELTA_TIME;
+    }
+}
+
+/*void old_runSimulation(std::vector<Particle>& particles, const unsigned long iterations) {
+    std::cout << "\n=====================================" << std::endl;
+    std::cout << "STARTING SIMULATION" << std::endl;
+    std::cout << "=====================================\n" << std::endl;
+
+    computeAndSortParticlesByMortonCode(particles);
+    auto barnesHutTree = buildBarnesHutTree(particles);
+
+    initializeLeapfrogIntegration(barnesHutTree, particles);
+
+    for (unsigned long i = 1; i <= iterations; i++) {
+        computeAndSortParticlesByMortonCode(particles);
+        barnesHutTree = buildBarnesHutTree(particles);
 
         int counter = 1;
+        int percentage = 0;
         for (auto& particle : particles) {
             // Compute force on particle using Barnes-Hut tree
-            updateParticle(particle, computeForce(barnesHutTree, particle), 0.01 /*TODO set a proper time step*/);
+            //leapfrogStep(particle, DELTA_TIME);
 
-            if (counter % 5000 == 0) {
-                std::cout << "Processed " << counter << " particles..." << std::endl;
+            //TODO move code into function to update progress bar of the current iteration
+            constexpr int percentageResolution = 100;
+            if (counter / static_cast<double>(MAX_PARTICLES) * 100.0 >= percentage * percentageResolution) {
+                std::cout << std::setw(static_cast<int>(log10(iterations)) +1) << i << "/" << iterations << ") Processed " << std::setw(3) << percentage * percentageResolution << "% (" << std::setw(static_cast<int>(std::log10(MAX_PARTICLES))+1) << counter << "/" << MAX_PARTICLES << ")" << std::endl;
+                percentage++;
             }
             counter++;
         }
+        //TODO move code into function to update progress bar of the entire simulation
+        std::cout << "#" << i << " iteration finished: " << static_cast<double>(i) / static_cast<double>(iterations) * 100.0 << "%" << std::endl;
+        std::cout << "----------------------------------------" << std::endl;
 
-        // printBarnesHutTree(barnesHutTree);
+        printBarnesHutTree(barnesHutTree);
     }
-}
+    std::cout << "\n=====================================" << std::endl;
+    std::cout << "END OF SIMULATION" << std::endl;
+    std::cout << "=====================================\n" << std::endl;
+}*/
 
 void printParticles(const std::vector<Particle>& particles) {
     std::cout << "\n================ PARTICLES =====================" << std::endl;
@@ -327,3 +442,17 @@ int main() {
     //printParticles(particles);
     return 0;
 }
+
+//==============================================
+
+/*
+ * EFFICIENCY SUGGESTIONS
+* TODO Use radix sort for Morton codes to avoid O(n log n) sort cost each step.
+* TODO Cache and reuse the tree when possible; consider incremental updates or rebuild only every k steps if accuracy allows.
+* TODO Precompute and reuse cellSize or store node size/half-diagonal to avoid repeated bounding-box scans.
+* fixme Parallelize per-particle acceleration with OpenMP; ensure tree is read-only during traversal.
+* Avoid heap allocations in hot loops (use fixed-size arrays, reserve stacks if needed).
+* TODO Consider a true octree (8 children) for tighter opening criterion in 3D; if staying binary BVH, refine the size metric (use bounding box diagonal).
+* TODO Use SoA layout (separate arrays for positions/velocities/masses) for better SIMD and cache locality.
+* TODO Replace repeated computeDistance with inlined arithmetic using precomputed COM to reduce function overhead.
+ */
