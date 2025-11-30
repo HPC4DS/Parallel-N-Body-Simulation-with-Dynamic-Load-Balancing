@@ -13,12 +13,12 @@
 #include "utils/random_utils.h"
 
 #define SPACE_DIMENSIONS 3
-#define MAX_PARTICLES 10
+#define MAX_PARTICLES 100
 #define NO_CHILDREN (-1)
 
 
 // TODO set with proper values
-#define SIMULATION_ITERATIONS 1 //(25*60*1) // 25 FPS for 1 minutes
+#define SIMULATION_ITERATIONS 10 //(25*60*1) // 25 FPS for 1 minutes
 #define THETA 0.5 // Opening angle threshold
 #define SOFTENING_EPSILON 1e-3 // Softening factor to avoid singularities
 #define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
@@ -58,10 +58,12 @@ struct BarnesHutNode {
 std::vector<Particle> randomParticles(const size_t nParticles) {
     std::vector<Particle> particles(nParticles);
     for (int i = 0; i < nParticles; i++) {
-        particles[i] = {random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
-                        //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
-                        0,0,0,
-                        random_double(1.0, 10.0)};
+        particles[i] = {
+            random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
+            //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
+            0,0,0,
+            //random_double(1.0, 1.0)};
+            1.0};
     }
 
     return particles;
@@ -85,7 +87,7 @@ inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
 }
 void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles) {
     for (auto& particle : particles) {
-        // assuming positions are normalized [0,1)
+        // Fixme = normalize discrete positions based on current simulation space bounding box. Currently assuming positions are normalized [0,1)
         uint32_t discretized_position[SPACE_DIMENSIONS];
         for (int i = 0; i < SPACE_DIMENSIONS; i++) {
             discretized_position[i] = static_cast<uint32_t>(particle.position[i] * ((1<<21) -1));
@@ -251,6 +253,9 @@ inline double computeSquaredDistance(const Particle& particle, const BarnesHutNo
 
 
 std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<BarnesHutNode>& barnesHutTree, const Particle& particle, const size_t nodeIndex = 0) {
+    unsigned long maxStackSize = 0;
+    unsigned long totalElements = 0;
+
     std::array<double, SPACE_DIMENSIONS> acceleration{0.0, 0.0, 0.0};
     std::stack<size_t> indexStack;
     indexStack.push(nodeIndex);
@@ -259,6 +264,9 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
     constexpr double eps2 = SOFTENING_EPSILON * SOFTENING_EPSILON;
 
     while (!indexStack.empty()) {
+        if (indexStack.size() > maxStackSize) maxStackSize = indexStack.size();
+        totalElements++;
+
         const size_t currentIndex = indexStack.top();
         indexStack.pop();
         const BarnesHutNode& currentNode = barnesHutTree[currentIndex];
@@ -290,6 +298,8 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
             }
         }
     }
+
+    PRINT_DEBUG_INFO("*** Max stack size: %lu\t|\ttotal elements: %lu\n", maxStackSize, totalElements);
 
     return acceleration;
 }
@@ -363,7 +373,9 @@ void printBarnesHutTree(const std::vector<BarnesHutNode>& tree) {
 void runSimulation(std::vector<Particle>& particles, const unsigned long iterations) {
     auto barnesHutTree = buildBarnesHutTree(particles);
 
+    PRINT_DEBUG_INFO("Init Leapfrog...\n");
     initLeapfrogVelocityKick(barnesHutTree, particles);
+    PRINT_DEBUG_INFO("Leapfrog initialized\n\n-------\n");
     // From now on, positions are at integer times: t = 0, dt, 2dt, ...
     // And velocities are at half-integer times: t = dt/2, 3dt/2, 5dt/2, ...
 
@@ -371,16 +383,26 @@ void runSimulation(std::vector<Particle>& particles, const unsigned long iterati
 
     // ===================== MAIN SIMULATION LOOP =====================
     double time = 0.0;
-    for (unsigned long i = 0; i < iterations; i++) {
+    for (unsigned long i = 1; i <= iterations; i++) {
         // Drift: update positions x^(n) -> x^(n+1)
+
+        PRINT_DEBUG_INFO("%lu) --> Leapfrog positions drift...\n", i);
         leapfrogPositionDrift(particles);
+        PRINT_DEBUG_INFO("%lu) --> Leapfrog position done\n", i);
 
+        PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree...\n", i);
         rebuildBarnesHutTree(barnesHutTree, particles);
+        PRINT_DEBUG_INFO("%lu) -- --> Rebuild tree done\n", i);
 
+
+        PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick...\n", i);
         // Kick: update velocities v^(n+1/2) -> v^(n+3/2)
         leapfrogVelocityKick(barnesHutTree, particles);
+        PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick done\n\n", i);
 
         time += DELTA_TIME;
+
+        std::cout << "#" << i << " iteration finished: " << static_cast<double>(i) / static_cast<double>(iterations) * 100.0 << "%\n" << std::endl;
     }
 }
 
@@ -448,11 +470,8 @@ int main() {
 /*
  * EFFICIENCY SUGGESTIONS
 * TODO Use radix sort for Morton codes to avoid O(n log n) sort cost each step.
-* TODO Cache and reuse the tree when possible; consider incremental updates or rebuild only every k steps if accuracy allows.
-* TODO Precompute and reuse cellSize or store node size/half-diagonal to avoid repeated bounding-box scans.
+* fixme Cache and reuse the tree when possible; consider incremental updates or rebuild only every k steps if accuracy allows.
 * fixme Parallelize per-particle acceleration with OpenMP; ensure tree is read-only during traversal.
 * Avoid heap allocations in hot loops (use fixed-size arrays, reserve stacks if needed).
-* TODO Consider a true octree (8 children) for tighter opening criterion in 3D; if staying binary BVH, refine the size metric (use bounding box diagonal).
 * TODO Use SoA layout (separate arrays for positions/velocities/masses) for better SIMD and cache locality.
-* TODO Replace repeated computeDistance with inlined arithmetic using precomputed COM to reduce function overhead.
  */
