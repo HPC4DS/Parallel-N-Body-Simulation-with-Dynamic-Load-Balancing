@@ -10,22 +10,25 @@
 #include <stack>
 #include <algorithm>
 #include <cfloat>
+#include <random>
+#include <cmath>
+#include <array>
 
 #include "debug/print_debug.h"
 #include "utils/random_utils.h"
 
 #define SPACE_DIMENSIONS 3
-#define N_PARTICLES 10000
+#define N_PARTICLES 4
 #define NO_CHILDREN (-1)
 
 
-// TODO set with proper values
+// fixme set proper simulation parameters
 
-#define VISUALIZATION_PRECISION 5 // Output every VISUALIZATION_PRECISION iterations
+#define VISUALIZATION_PRECISION 500 // Output every VISUALIZATION_PRECISION iterations
 #define SIMULATION_ITERATIONS (25*30 * VISUALIZATION_PRECISION) //(25*60*1) // 25 FPS for 1 minutes
 // #define SIMULATION_ITERATIONS 1
 #define THETA 0.5 // Opening angle threshold
-#define SOFTENING_EPSILON 0.1 // Softening factor to avoid singularities
+#define SOFTENING_EPSILON 0.01 // Softening factor to avoid singularities
 #define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
 #define DELTA_TIME 1e-5 // Arbitrary units
 
@@ -33,6 +36,7 @@ struct Particle {
     double position[SPACE_DIMENSIONS]; // center of mass
     double velocity[SPACE_DIMENSIONS];
     double mass;
+    size_t ID;
     uint64_t morton_code;
 };
 
@@ -56,19 +60,61 @@ struct BarnesHutNode {
 
 std::vector<Particle> randomParticles(const size_t nParticles) {
     std::vector<Particle> particles(nParticles);
-    for (int i = 0; i < nParticles; i++) {
+    for (size_t i = 0; i < nParticles; i++) {
         particles[i] = {
 /*random init positions*/           random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
 /*random init velocity*/            //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
 /*no init velocity*/                0,0,0,
-/*random init mass*/                //random_double(1.0, 10.0)};
-/*fixed mass=1.0*/                  1.0};
+/*random init mass*/                //random_double(0.1, 100.0)};
+/*fixed mass=1.0*/                  1.0 / static_cast<double>(nParticles),
+                                    i};
     }
 
     return particles;
 }
 
+std::vector<Particle> rotatingEllipticalCluster(const size_t nParticles, const double min, const double max) {
+    std::vector<Particle> particles(nParticles);
 
+    // Tunable scale for angular velocity (controls rotation strength)
+    constexpr double omega_base = 100.0;
+
+    for (size_t i = 0; i < nParticles; i++) {
+        // Use polar coordinates (module + phase) to obtain an elliptical distribution
+        const double angle = random_double(0.0, 2.0 * std::acos(-1.0));
+        const double r_norm = random_double(0.0, 1.0); // radial fraction [0,1]
+        const double a = std::max(std::abs(min), std::abs(max)); // semi-major (x)
+        const double b = a * 0.5; // semi-minor (y)
+        double x = r_norm * a * std::cos(angle);
+        double y = r_norm * b * std::sin(angle);
+        double z = random_double(min / 5.0, max / 5.0);
+
+        // Radius in the XY plane from origin
+        const double r = std::sqrt(x * x + y * y);
+
+        // Angular speed that increases with distance from origin (omega ~ r)
+        const double omega = omega_base * r;
+
+        // Velocity perpendicular to position in the XY plane: v = omega x r
+        // For a 2D perpendicular vector: v_x = -omega * y, v_y = omega * x
+        double vx = -omega * y*2;
+        double vy =  omega * x*0.5;
+        double vz = omega * x * random_double(-3, 3);
+
+        particles[i].position[0] = x;
+        particles[i].position[1] = y;
+        particles[i].position[2] = z;
+
+        particles[i].velocity[0] = vx;
+        particles[i].velocity[1] = vy;
+        particles[i].velocity[2] = vz;
+
+        particles[i].mass = 1.0;
+        particles[i].morton_code = 0;
+    }
+
+    return particles;
+}
 
 inline uint64_t morton3D_u64(const uint32_t position[SPACE_DIMENSIONS]) {
     auto splitBy2 = [](const uint32_t _v) {
@@ -440,7 +486,7 @@ void writeParticlesToFile(const std::vector<Particle>& particles, const std::str
 void runSimulation(std::vector<Particle>& particles, const unsigned long iterations) {
     // PRINT_DEBUG_INFO("Build BarnesHut tree...\n");
     auto barnesHutTree = buildBarnesHutTree(particles);
-    // PRINT_DEBUG_INFO("BarnesHut tree built\n");
+    //PRINT_DEBUG_INFO("BarnesHut tree built\n");
 
 
     // PRINT_DEBUG_INFO("Init Leapfrog...\n");
@@ -542,11 +588,13 @@ void printParticles(const std::vector<Particle>& particles) {
 int main() {
     constexpr size_t nParticles = N_PARTICLES;
 
-    std::vector<Particle> particles = randomParticles(nParticles);
+    std::vector<Particle> particles;
+    particles = randomParticles(nParticles);
+    //particles = rotatingEllipticalCluster(nParticles, -1.0, 1.0);
     runSimulation(particles, SIMULATION_ITERATIONS);
 
 
-    //printParticles(particles);
+
     return 0;
 }
 

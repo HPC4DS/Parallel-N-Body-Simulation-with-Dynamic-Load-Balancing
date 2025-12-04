@@ -19,23 +19,25 @@ PARTICLE_SIZE = (
         SPACE_DIM * 8 +  # position
         SPACE_DIM * 8 +  # velocity
         8 +              # mass (double)
+        8 +              # ID
         8                # morton_code (uint64)
 )
 
 
-STRUCT = struct.Struct("6d d Q")
+STRUCT = struct.Struct("6d d Q Q")
 # Meaning:
 # 6 doubles (pos+vel)
 # 1 double (mass)
+# 1 size_t (ID)
 # 1 uint64 (morton code)
-# total = 8 doubles (64 bytes)
+# total = 9 doubles (72 bytes)
 
 def load_particles(filename):
     with open(filename, "rb") as f:
         data = f.read()
 
     header_size = 4  # skip this
-    particle_size = 64
+    particle_size = 72  # bytes per particle
 
     data = data[header_size:]  # remove header
 
@@ -47,6 +49,7 @@ def load_particles(filename):
         ("pos",   np.float64, (3,)),
         ("vel",   np.float64, (3,)),
         ("mass",  np.float64),
+        ("id",    np.uint64),
         ("code",  np.uint64),
     ])
 
@@ -68,6 +71,11 @@ def save_vtp(particles, outname):
     mass = numpy_to_vtk(particles["mass"], deep=True)
     mass.SetName("mass")
     polydata.GetPointData().AddArray(mass)
+
+    # add ID
+    pid = numpy_to_vtk(particles["id"], deep=True)
+    pid.SetName("particle_id")
+    polydata.GetPointData().AddArray(pid)
 
     # add Morton code
     code = numpy_to_vtk(particles["code"], deep=True)
