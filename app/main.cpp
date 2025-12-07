@@ -4,6 +4,7 @@
 * Description: Implement a parallel gravitational N-body simulation that runs efficiently on a cluster using MPI for distributed domain decomposition and OpenMP for intra-node parallelism.
 ***********************************************************************************************************************/
 
+#include <cmath>
 #include <omp.h>
 #include <mpi.h>
 
@@ -21,11 +22,12 @@
 
 #ifdef HPC_RUN
 #define BENCHMARK_DIR getenv("HPC_BENCHMARK_DIR")
+#define APPLICATION_ID getenv("JOB_ID")
 #else
 #define BENCHMARK_DIR getenv("LOCAL_BENCHMARK_DIR")
+#define APPLICATION_ID getenv("APPLICATION_ID")
 #endif
 
-#define APPLICATION_ID getenv("APPLICATION_ID")
 
 
 void wait_for_attach_debugger(int rank);
@@ -51,12 +53,18 @@ int main(int argc, char *argv[]) {
     benchmark_config.logs_dir = strdup(logs_dir_str.c_str());
     benchmark_config.mpi_log_file = &benchmark_log_file;
     strcpy(benchmark_config.description, "Main app testing benchmark");
-    benchmark_config.max_iterations = 50;
-    benchmark_config.min_time = 2.0; // seconds
+    benchmark_config.max_iterations = 5;
+    benchmark_config.min_time = 0.5; // seconds
+    benchmark_config.sweep_value = 0;
+    strcpy(benchmark_config.sweep_name, "N/A");
 
     benchmark_init(my_rank, &benchmark_config);
-    std::function<void()> pre = [&](){};
-    std::function<void()> app = [&](){PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");};
+    std::function<void()> pre = [&]() {};
+    std::function<void()> app = [&]() {
+        for (int i = 0; i < 10000; ++i) {
+            volatile double x = std::sin(i) * std::cos(i); // Dummy computation
+        }
+    };
     std::function<void()> post = [&](){};
     benchmark_run(my_rank, REPETITION_STRATEGY::MIN_TIME, &benchmark_config, pre, app, post, nullptr);
     benchmark_finalize(my_rank, &benchmark_config);

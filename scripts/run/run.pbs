@@ -19,7 +19,7 @@ stderr_file="${job_logs_dir}/err.log"
 exec 1> "$stdout_file" 2> "$stderr_file"
 #---------------------------------------------------------------------------------------------------
 
-export APPLICATION_ID="${job_id}"
+export JOB_ID="${job_id}"
 
 module load gcc91
 module load mpich-3.2.1--gcc-9.1.0

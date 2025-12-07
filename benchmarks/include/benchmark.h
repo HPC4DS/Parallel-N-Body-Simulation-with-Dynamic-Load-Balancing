@@ -20,10 +20,14 @@ extern "C" {
 
     typedef struct {
         char description[256];
-        int max_iterations;
+        int max_iterations; // Maximum number of iterations for the benchmark
+        int repetitions; // How many times to repeat the entire benchmark
         double min_time;
         const char *logs_dir;
         MPI_File *mpi_log_file;
+
+        unsigned int sweep_value;
+        char sweep_name[64];
     } BenchmarkConfig;
 
     typedef struct {
