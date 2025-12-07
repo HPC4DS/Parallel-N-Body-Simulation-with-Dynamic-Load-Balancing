@@ -18,19 +18,36 @@
 #include "utils/random_utils.h"
 
 #define SPACE_DIMENSIONS 3
-#define N_PARTICLES 4
+#define N_PARTICLES 100
 #define NO_CHILDREN (-1)
 
+//TODO create a file with particles data for reproducibility tests
 
 // fixme set proper simulation parameters
-
-#define VISUALIZATION_PRECISION 500 // Output every VISUALIZATION_PRECISION iterations
-#define SIMULATION_ITERATIONS (25*30 * VISUALIZATION_PRECISION) //(25*60*1) // 25 FPS for 1 minutes
+//TODO make parameters configurable via command line or config file and log them in simulation folder
+#define VISUALIZATION_PRECISION 500 // Output every VISUALIZATION_PRECISION iterations | 500
+#define SIMULATION_ITERATIONS (25*60 * VISUALIZATION_PRECISION) //(25*60*1) // 25 FPS for 1 minutes
 // #define SIMULATION_ITERATIONS 1
-#define THETA 0.5 // Opening angle threshold
-#define SOFTENING_EPSILON 0.01 // Softening factor to avoid singularities
-#define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
-#define DELTA_TIME 1e-5 // Arbitrary units
+#define THETA 0.5 // Opening angle threshold | 0.5
+
+// // eps ≈ C * (G * M)^{1/3} * dt^{2/3}
+// // Use C>1 if you want more damping (safer), or C<1 for less diffusion but higher risk of close-encounter noise.
+// #define SOFTENING_EPSILON 0.001 // Softening factor to avoid singularities | 0.01
+// #define GRAVITATIONAL_CONSTANT 1.0 // Arbitrary units
+// #define DELTA_TIME 1e-5 // Arbitrary units
+
+constexpr double compute_softening_epsilon(const double G, const double M, const double dt, const double C) {
+    // Estimate softening epsilon based on system parameters
+    // epsilon ~ C * (G * M_tot * dt^2)^(1/3)
+    return C * std::cbrt(G * M) * std::pow(dt, 2.0/3.0);
+}
+constexpr double G = 1.0;
+// Total mass of the system (assuming normalized units)
+constexpr double M_tot = 1.0;
+constexpr double dt = 1e-5;
+// safety_factor: use C>1 if you want more damping (safer), or C<1 for less diffusion but higher risk of close-encounter noise.
+constexpr double safety_factor = 2.0;
+const double eps = compute_softening_epsilon(G, M_tot, dt, safety_factor);
 
 struct Particle {
     double position[SPACE_DIMENSIONS]; // center of mass
@@ -60,14 +77,25 @@ struct BarnesHutNode {
 
 std::vector<Particle> randomParticles(const size_t nParticles) {
     std::vector<Particle> particles(nParticles);
+
+    // TODO improve position range and distribution
     for (size_t i = 0; i < nParticles; i++) {
         particles[i] = {
 /*random init positions*/           random_double(0.0, 1.0), random_double(0.0, 1.0), random_double(0.0, 1.0),
 /*random init velocity*/            //random_double(-0.01, 0.01), random_double(-0.01, 0.01), random_double(-0.01, 0.01),
 /*no init velocity*/                0,0,0,
-/*random init mass*/                //random_double(0.1, 100.0)};
-/*fixed mass=1.0*/                  1.0 / static_cast<double>(nParticles),
+/*rnd init mass, 1:10 max ratio*/   random_double(1.0, 10.0),
+/*fixed mass=1.0*/                  //1.0 / static_cast<double>(nParticles),
                                     i};
+    }
+
+    // Normalize masses to total 1.0
+    double totalMass = 0.0;
+    for (const auto& p : particles) {
+        totalMass += p.mass;
+    }
+    for (auto& p : particles) {
+        p.mass /= totalMass;
     }
 
     return particles;
@@ -97,9 +125,9 @@ std::vector<Particle> rotatingEllipticalCluster(const size_t nParticles, const d
 
         // Velocity perpendicular to position in the XY plane: v = omega x r
         // For a 2D perpendicular vector: v_x = -omega * y, v_y = omega * x
-        double vx = -omega * y*2;
-        double vy =  omega * x*0.5;
-        double vz = omega * x * random_double(-3, 3);
+        const double vx = -omega * y*2;
+        const double vy =  omega * x*0.5;
+        const double vz = omega * x * random_double(-3, 3);
 
         particles[i].position[0] = x;
         particles[i].position[1] = y;
@@ -172,8 +200,9 @@ void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles)  {
     const Bounds3D bb = findParticlesBoundingBoxPerAxis(particles);
     // PRINT_DEBUG_INFO("Bounding box calculation done\n");
 
-    const uint32_t maxCoord = (1u << 21) - 1u;
-
+    constexpr uint32_t maxCoord = (1u << 21) - 1u;
+    static uint64_t maxMortonCode = 0;
+    static uint64_t lastMaxMortonCode = 0;
     for (auto& particle : particles) {
         uint32_t discretized_position[SPACE_DIMENSIONS];
         for (int d = 0; d < SPACE_DIMENSIONS; d++) {
@@ -184,7 +213,16 @@ void computeAndSortParticlesByMortonCode(std::vector<Particle>& particles)  {
             discretized_position[d] = static_cast<uint32_t>(t * maxCoord);
         }
         particle.morton_code = morton3D_u64(discretized_position);
+        if (particle.morton_code > maxMortonCode) {
+            maxMortonCode = particle.morton_code;
+        }
     }
+
+    if (maxMortonCode > lastMaxMortonCode) {
+        std::cout << "Max Morton code: " << maxMortonCode << std::endl;
+        lastMaxMortonCode = maxMortonCode;
+    }
+
 
     // PRINT_DEBUG_INFO("Sorting particles...\n");
     std::sort(particles.begin(), particles.end(),
@@ -364,7 +402,8 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
     indexStack.push(nodeIndex);
 
     constexpr double theta2 = THETA * THETA;
-    constexpr double eps2 = SOFTENING_EPSILON * SOFTENING_EPSILON;
+    //fixme optimizations: use const expressions (but they are not compile time constants)
+    const double eps2 = eps * eps;
 
     while (!indexStack.empty()) {
         if (indexStack.size() > maxStackSize) maxStackSize = indexStack.size();
@@ -386,7 +425,7 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
                 const double r2_soft = r2 + eps2;
                 const double inv_r3 = 1.0 / (r2_soft * std::sqrt(r2_soft));
 
-                const double accMagnitude = GRAVITATIONAL_CONSTANT * currentNode.mass * inv_r3;
+                const double accMagnitude = G * currentNode.mass * inv_r3;
                 for (int d = 0; d < SPACE_DIMENSIONS; d++) {
                     // Accumulate acceleration vector components
                     acceleration[d] += accMagnitude * delta[d];
@@ -410,7 +449,7 @@ std::array<double, SPACE_DIMENSIONS> computeAcceleration(const std::vector<Barne
 
 void initLeapfrogVelocityKick(const std::vector<BarnesHutNode>& barnesHutTree, std::vector<Particle>& particles) {
     // Single half-kick to get velocities to t = dt/2
-    constexpr double half_dt = 0.5 * DELTA_TIME;
+    constexpr double half_dt = 0.5 * dt;
 
     for (auto& particle : particles) {
         const auto acceleration = computeAcceleration(barnesHutTree, particle);
@@ -427,7 +466,7 @@ void leapfrogVelocityKick(const std::vector<BarnesHutNode>& barnesHutTree, std::
         const auto acceleration = computeAcceleration(barnesHutTree, particle);
 
         for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-            particle.velocity[d] += acceleration[d] * DELTA_TIME;
+            particle.velocity[d] += acceleration[d] * dt;
         }
     }
 }
@@ -435,7 +474,7 @@ void leapfrogVelocityKick(const std::vector<BarnesHutNode>& barnesHutTree, std::
 void leapfrogPositionDrift(std::vector<Particle>& particles) {
     for (auto& particle : particles) {
         for (int d = 0; d < SPACE_DIMENSIONS; d++) {
-            particle.position[d] += particle.velocity[d] * DELTA_TIME;
+            particle.position[d] += particle.velocity[d] * dt;
         }
     }
 
@@ -517,9 +556,9 @@ void runSimulation(std::vector<Particle>& particles, const unsigned long iterati
         leapfrogVelocityKick(barnesHutTree, particles);
         // PRINT_DEBUG_INFO("%lu) -- -- --> Leapfrog velocities kick done\n\n", i);
 
-        time += DELTA_TIME;
+        time += dt;
 
-        std::cout << "----------\n#" << i+1 << " iteration finished: " << static_cast<double>(i+1) / static_cast<double>(iterations) * 100.0 << "%" << std::endl;
+        // std::cout << "----------\n#" << i+1 << " iteration finished: " << static_cast<double>(i+1) / static_cast<double>(iterations) * 100.0 << "%" << std::endl;
 
         if (i % VISUALIZATION_PRECISION == 0) {
             const int width = static_cast<int>(log10(SIMULATION_ITERATIONS)) + 1;
@@ -528,10 +567,10 @@ void runSimulation(std::vector<Particle>& particles, const unsigned long iterati
             std::string simulation_name = "linear_barnes_hut_tree";
             std::string filename = "output/local/simulations/" + simulation_name + "/particles_iteration_" + padded_iter_number + ".bin";
 
-            std::cout << "Write particles to file " << filename << std::endl;
+            // std::cout << "Write particles to file " << filename << std::endl;
 
 
-            writeParticlesToFile(particles, filename);
+            //writeParticlesToFile(particles, filename);
             output_counter++;
       }
     }

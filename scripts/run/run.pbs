@@ -38,3 +38,6 @@ if [[ "${MPI_RUN:-0}" == 1 ]]; then
 else
     "./${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
 fi
+
+#---------------------------------------------------------------------------------------------------
+# mpiexec --report-bindings -np 8 --map-by node:pe=2 --bind-to core ./my_mpi_application
