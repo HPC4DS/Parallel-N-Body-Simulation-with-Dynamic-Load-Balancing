@@ -12,7 +12,7 @@ docs/
 │    ├── nbody/                 # Physics, ODEs, integration methods
 │    ├── hpc/                   # MPI, OpenMP, load balance, SFCs
 │    ├── numerics/              # Floating point, stability, error
-│    ├── algorithms/            # Genetic algorithms, PSO, fitness eval
+│    ├── algorithms/            # Sorting, Leapfrog integration...
 │    └── math/                  # Linear algebra, calculus, etc.
 │
 ├── design/                     # Project architecture

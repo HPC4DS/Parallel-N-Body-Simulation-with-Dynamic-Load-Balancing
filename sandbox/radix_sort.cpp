@@ -196,14 +196,15 @@ int main() {
     std::vector<uint64_t> numbers;
 
     std::cout << "Filling vector with random numbers..." << std::endl;
-    random_fill(numbers, 500000000, 0LU, /*9209641988550369538*/ 1LU << 63);
+    random_fill(numbers, 80000000, 0LU, /*9209641988550369538*/ 1LU << 63);
 
 
 
-    std::cout << "Sorting vector elements..." << std::endl;
+    std::cout << "radix_sort<10> vector elements..." << std::endl;
+    //std::cout << "std::sort vector elements..." << std::endl;
     const auto start = std::chrono::high_resolution_clock::now();
-    codeforces_radix_sort(numbers.begin(), numbers.end());
-    radix_sort<11>(numbers.begin(), numbers.end());
+    /* codeforces_radix_sort(numbers.begin(), numbers.end()); */
+    radix_sort<10>(numbers.begin(), numbers.end());
     //std::sort(numbers.begin(), numbers.end());
     const auto elapsed = std::chrono::high_resolution_clock::now() - start;
 
@@ -225,7 +226,7 @@ int main() {
     return 0;
 }
 
-/*
+/* // TODO benchmark with struct elements (e.g. Particle), sorting by Morton Code key (uint64_t), and evaluate performance between vector length and struct size
  * // TODO test better BITS value on HPC remote machine
  * // TODO test RAM/cache limits performances and how the algorithm scale with larger N on single machine vs distributed (multi node computing)
  *

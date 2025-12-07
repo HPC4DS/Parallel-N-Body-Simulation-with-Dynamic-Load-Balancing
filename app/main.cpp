@@ -51,7 +51,10 @@ int main(int argc, char *argv[]) {
     benchmark_config.n_iterations = 50;
 
     benchmark_init(my_rank, &benchmark_config);
-    benchmark_run(my_rank, &benchmark_config, [&](){PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");}, NULL);
+    std::function<void()> pre = [](){};
+    std::function<void()> app = [&](){PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");};
+    std::function<void()> post = [](){};
+    benchmark_run(my_rank, &benchmark_config, pre, app, post, nullptr);
     benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 
