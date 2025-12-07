@@ -20,7 +20,8 @@ extern "C" {
 
     typedef struct {
         char description[256];
-        int n_iterations;
+        int max_iterations;
+        double min_time;
         const char *logs_dir;
         MPI_File *mpi_log_file;
     } BenchmarkConfig;
@@ -31,10 +32,15 @@ extern "C" {
         double avg_time;
     } BenchmarkResult;
 
+    typedef enum REPETITION_STRATEGY {
+        FIXED_ITERATIONS,
+        MIN_TIME
+    } REPETITION_STRATEGY;
+
     void benchmark_init(int my_rank, const BenchmarkConfig* benchmark_config);
     void benchmark_finalize(int my_rank, const BenchmarkConfig* benchmark_config);
 
-    void benchmark_run_c(int my_rank, const BenchmarkConfig* benchmark_config, Application preHook, void *preHookArgs, Application app, void *appArgs, Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result);
+    void benchmark_run_c(int my_rank, REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, Application preHook, void *preHookArgs, Application app, void *appArgs, Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result);
 
 #ifdef __cplusplus
 }

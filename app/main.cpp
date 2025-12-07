@@ -20,10 +20,12 @@
 #include "BuildInfo.h"
 
 #ifdef HPC_RUN
-#define LOGS_DIR getenv("HPC_JOB_LOGS_DIR")
+#define BENCHMARK_DIR getenv("HPC_BENCHMARK_DIR")
 #else
-#define LOGS_DIR getenv("LOCAL_LOGS_DIR")
+#define BENCHMARK_DIR getenv("LOCAL_BENCHMARK_DIR")
 #endif
+
+#define APPLICATION_ID getenv("APPLICATION_ID")
 
 
 void wait_for_attach_debugger(int rank);
@@ -45,16 +47,18 @@ int main(int argc, char *argv[]) {
 
     //=============================================================================
     BenchmarkConfig benchmark_config;
-    benchmark_config.logs_dir = LOGS_DIR;
+    const std::string logs_dir_str = std::string(BENCHMARK_DIR ? BENCHMARK_DIR : "") + "/" + (APPLICATION_ID ? APPLICATION_ID : "default_app");
+    benchmark_config.logs_dir = strdup(logs_dir_str.c_str());
     benchmark_config.mpi_log_file = &benchmark_log_file;
     strcpy(benchmark_config.description, "Main app testing benchmark");
-    benchmark_config.n_iterations = 50;
+    benchmark_config.max_iterations = 50;
+    benchmark_config.min_time = 2.0; // seconds
 
     benchmark_init(my_rank, &benchmark_config);
-    std::function<void()> pre = [](){};
+    std::function<void()> pre = [&](){};
     std::function<void()> app = [&](){PRINT_DEBUG_INFO_R(my_rank, "Hello Parallel N-Body Simulation with Dynamic Load Balancing\n");};
-    std::function<void()> post = [](){};
-    benchmark_run(my_rank, &benchmark_config, pre, app, post, nullptr);
+    std::function<void()> post = [&](){};
+    benchmark_run(my_rank, REPETITION_STRATEGY::MIN_TIME, &benchmark_config, pre, app, post, nullptr);
     benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 

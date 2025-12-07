@@ -14,7 +14,7 @@
 #ifdef HPC_RUN
 #define LOGS_DIR getenv("HPC_JOB_LOGS_DIR")
 #else
-#define LOGS_DIR getenv("LOCAL_LOGS_DIR")
+#define BENCHMARK_DIR getenv("LOCAL_LOGS_DIR")
 #endif
 
 #define N_BODIES_DEFAULT 10000000
@@ -99,10 +99,10 @@ int main(int argc, char *argv[]) {
 //*********************************************************************************
 
 void setup_bm_cnfg(BenchmarkConfig& benchmark_config, MPI_File& benchmark_log_file, const char *benchmark_description) {
-    benchmark_config.logs_dir = LOGS_DIR;
+    benchmark_config.logs_dir = BENCHMARK_DIR;
     benchmark_config.mpi_log_file = &benchmark_log_file;
     strcpy(benchmark_config.description, benchmark_description);
-    benchmark_config.n_iterations = 5;
+    benchmark_config.max_iterations = 5;
 }
 
 void generate_bodies(std::vector<Body>& bodies, const int n_bodies) {

@@ -16,28 +16,28 @@ source "${job_logs_dir}/job_config.log"
 stdout_file="${job_logs_dir}/out.log"
 stderr_file="${job_logs_dir}/err.log"
 
-export HPC_JOB_LOGS_DIR="${job_logs_dir}"
-
 exec 1> "$stdout_file" 2> "$stderr_file"
 #---------------------------------------------------------------------------------------------------
 
+export APPLICATION_ID="${job_id}"
 
 module load gcc91
 module load mpich-3.2.1--gcc-9.1.0
 
-if [[ "${SANDBOX:-0}" == 1 ]]; then
-    BINARY=${SANDBOX_BINARY}
-else
-    BINARY=${PROJECT_BINARY}
-fi
-
 
 if [[ "${MPI_RUN:-0}" == 1 ]]; then
-    mpirun -n "${HPC_MPI_PROCESSES}" "${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
+    mpirun -n "${HPC_MPI_PROCESSES}" "${TMP_BINARY_PATH}"
 
 else
-    "./${CMAKE_BUILD_HPC_DEBUG}/${BINARY}"
+    "${BINARY_PATH}"
 fi
 
+if [[ -n "${TMP_BINARY_PATH}" ]]; then
+    parent_dir="$(dirname "${TMP_BINARY_PATH}")"
+    rm -f "${TMP_BINARY_PATH}"
+    if [[ -n "$parent_dir" && "$parent_dir" != "/" && "$parent_dir" != "." ]]; then
+        rm -rf "$parent_dir"
+    fi
+fi
 #---------------------------------------------------------------------------------------------------
 # mpiexec --report-bindings -np 8 --map-by node:pe=2 --bind-to core ./my_mpi_application

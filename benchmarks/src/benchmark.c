@@ -5,20 +5,24 @@
 #include "benchmark.h"
 
 #include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <time.h>
 #include <stdarg.h>
-#include <unistd.h>
 #include <errno.h>
-
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <float.h>
+
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
 #include "utils/info_utils.h"
 
 #define MAX_LOG_FILENAME_LENGTH 1024
 #define BENCHMARK_FILE_NAME "benchmark.log"
+
+
 
 /**
  * Aborts the MPI program with the given error code.
@@ -59,7 +63,7 @@ static void handle_mpi_error_and_abort(const int my_rank, const int ret_value, c
  * @param benchmark_log_filename The buffer to store the generated filename.
  * @param logs_dir The directory where the log file will be stored.
  */
-static void create_benchmark_filename(const int my_rank, char *benchmark_log_filename, const char *logs_dir) {
+static void compose_benchmark_filename(const int my_rank, char *benchmark_log_filename, const char *logs_dir) {
     const int len = snprintf(benchmark_log_filename, MAX_LOG_FILENAME_LENGTH, "%s/%s", logs_dir, BENCHMARK_FILE_NAME);
     if (len < 0 || len >= MAX_LOG_FILENAME_LENGTH) {
         PRINT_DEBUG_ERROR_R(my_rank, "[BENCHMARK] Benchmark log filename too long (truncated)\n");
@@ -181,6 +185,29 @@ static void write_benchmark_log_header(const int my_rank, const MPI_File *file, 
     benchmark_unique_log(my_rank, file, "==================================================\n\n");
 }
 
+
+void create_benchmark_dir_if_not_exists(const int my_rank, const char *logs_dir) {
+    if (my_rank == 0) {
+        if (logs_dir == NULL || logs_dir[0] == '\0') {
+            PRINT_DEBUG_ERROR_R(my_rank, "[BENCHMARK] Invalid logs_dir\n");
+            benchmark_abort(1);
+        }
+
+        if (mkdir(logs_dir, 0775) != 0) {
+            if (errno != EEXIST) {
+                PRINT_DEBUG_ERROR_R(my_rank, "[BENCHMARK] Failed to create benchmark log directory `%s`: %s\n", logs_dir, strerror(errno));
+                benchmark_abort(1);
+            } else {
+                PRINT_DEBUG_INFO_R(my_rank, "[BENCHMARK] Benchmark log directory already exists: `%s`\n", logs_dir);
+            }
+        } else {
+            PRINT_DEBUG_INFO_R(my_rank, "[BENCHMARK] Created benchmark log directory: `%s`\n", logs_dir);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+}
+
+
 /**
  * Initializes the benchmark by creating and opening the log file.
  * benchmark_init is a collective operation
@@ -191,7 +218,8 @@ static void write_benchmark_log_header(const int my_rank, const MPI_File *file, 
 void benchmark_init(const int my_rank, const BenchmarkConfig* benchmark_config) {
     char benchmark_log_filename[MAX_LOG_FILENAME_LENGTH];
 
-    create_benchmark_filename(my_rank, benchmark_log_filename, benchmark_config->logs_dir);
+    compose_benchmark_filename(my_rank, benchmark_log_filename, benchmark_config->logs_dir);
+    create_benchmark_dir_if_not_exists(my_rank, benchmark_config->logs_dir);
     open_benchmark_file(my_rank, benchmark_log_filename, benchmark_config->mpi_log_file);
 
     UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] Output log to: %s\n", benchmark_log_filename);
@@ -216,35 +244,48 @@ void benchmark_finalize(const int my_rank, const BenchmarkConfig* benchmark_conf
     }
 }
 
+double fixed_iterations_strategy(const int iteration, const BenchmarkConfig* benchmark_config) {
 
-//FIXME: if application calls any collective MPI function, imbalance statistics may be incorrect (since benchmark cannot know which process waited more)
+}
+
+double min_time_strategy(const int iteration, const BenchmarkConfig* benchmark_config) {
+
+}
+
+//FIXME: if benchmarked application calls any collective MPI function, imbalance statistics may be incorrect (since benchmark cannot know which process waited more)
 /**
  * Runs the benchmark for the given application and logs the execution time.
  * benchmark_run_c is a collective operation
  *
  * @param my_rank The rank of the current process.
+ * @param repetition_strategy The strategy for repeating the benchmark.
  * @param benchmark_config The configuration for the benchmark.
  * @param preHook The pre-hook function to execute before the application function.
+ * @param preHookArgs The arguments to pass to the pre-hook function.
  * @param app The application function to benchmark.
+ * @param appArgs The arguments to pass to the application function.
  * @param postHook The post-hook function to execute after the application function.
- * @param arguments The arguments to pass to the application function.
+ * @param postHookArgs The arguments to pass to the post-hook function.
  * @param benchmark_result The structure to store benchmark results.
  */
-void benchmark_run_c(int my_rank, const BenchmarkConfig* benchmark_config, Application preHook, void *preHookArgs, Application app, void *appArgs, Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result) {
+void benchmark_run_c(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, const Application preHook, void *preHookArgs, const Application app, void *appArgs, const Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result) {
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    double *local_times = malloc(benchmark_config->n_iterations * sizeof(double));
-    double *global_times = malloc(benchmark_config->n_iterations * sizeof(double));
+    double *local_times = malloc(benchmark_config->max_iterations * sizeof(double));
+    double *global_times = malloc(benchmark_config->max_iterations * sizeof(double));
     double *all_local_times = NULL;
 
     if (my_rank == 0) {
-        all_local_times = malloc(world_size * benchmark_config->n_iterations * sizeof(double));
+        all_local_times = malloc(world_size * benchmark_config->max_iterations * sizeof(double));
     }
 
     UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK***\n");
 
-    for (int i = 0; i < benchmark_config->n_iterations; i++) {
+    //=============================================================================
+    int iterations;
+    for (iterations = 0; iterations < benchmark_config->max_iterations; iterations++) {
+        MPI_Barrier(MPI_COMM_WORLD);
         preHook(preHookArgs);
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -255,34 +296,36 @@ void benchmark_run_c(int my_rank, const BenchmarkConfig* benchmark_config, Appli
         MPI_Barrier(MPI_COMM_WORLD);
         const double global_end = MPI_Wtime();
 
-        local_times[i] = local_end - start_time;
-        global_times[i] = global_end - start_time;
+        local_times[iterations] = local_end - start_time;
+        global_times[iterations] = global_end - start_time;
 
+        MPI_Barrier(MPI_COMM_WORLD);
         postHook(postHookArgs);
     }
+    //=============================================================================
 
 
     UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK***\n");
 
     // Gather all local times to rank 0
-    MPI_Gather(local_times, benchmark_config->n_iterations, MPI_DOUBLE,
-               all_local_times, benchmark_config->n_iterations, MPI_DOUBLE,
+    MPI_Gather(local_times, iterations, MPI_DOUBLE,
+               all_local_times, iterations, MPI_DOUBLE,
                0, MPI_COMM_WORLD);
 
     if (my_rank == 0) {
         benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "\n***\n");
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Results over %d iterations\n", benchmark_config->n_iterations);
+        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Results over %d iterations\n", iterations);
         benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "***\n\n");
 
         benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "iteration;global_time;min_rank;min;max_rank;max;avg;imbalance\n");
 
         // Per-iteration statistics
-        for (int i = 0; i < benchmark_config->n_iterations; i++) {
+        for (int i = 0; i < iterations; i++) {
             double iter_min = DBL_MAX, iter_max = 0, iter_sum = 0;
             int iter_min_rank = -1, iter_max_rank = -1;
 
             for (int r = 0; r < world_size; r++) {
-                const double t = all_local_times[r * benchmark_config->n_iterations + i];
+                const double t = all_local_times[r * iterations + i];
                 if (t <= iter_min) {iter_min = t; iter_min_rank = r;}
                 if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
                 iter_sum += t;
@@ -304,58 +347,3 @@ void benchmark_run_c(int my_rank, const BenchmarkConfig* benchmark_config, Appli
     free(local_times);
     free(global_times);
 }
-
-
-
-/*void benchmark_run_c(const int my_rank, const BenchmarkConfig* benchmark_config, const Application app, void *arguments, BenchmarkResult* benchmark_result) {
-    double min_time = DBL_MAX;
-    double max_time = 0;
-    double avg_time = 0;
-
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK***\n");
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    double total_avg_time = MPI_Wtime();
-    for (int i = 0; i < benchmark_config->n_iterations; i++) {
-        // UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] Starting iteration %d/%d for benchmark '%s'\n", i + 1, benchmark_config->n_iterations, benchmark_config->name);
-
-        const double start_time = MPI_Wtime();
-        app(arguments);
-        const double end_time = MPI_Wtime();
-        const double local_elapsed_time = end_time - start_time;
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        const double global_end_time = MPI_Wtime();
-        const double global_elapsed_time = global_end_time - start_time;
-
-        // benchmark_unique_log(my_rank, benchmark_config->log_file, "Iteration %d: %.20lf seconds\n", i + 1, elapsed_time);
-
-        if (local_elapsed_time < min_time) {min_time = local_elapsed_time;}
-        if (local_elapsed_time > max_time) {max_time = local_elapsed_time;}
-        avg_time += local_elapsed_time;
-    }
-    total_avg_time = MPI_Wtime() - total_avg_time;
-    total_avg_time /= benchmark_config->n_iterations;
-
-    avg_time /= benchmark_config->n_iterations;
-
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK***\n");
-
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "\n***\n");
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Results over %d iterations, with timer resolution of %.12f seconds:\n", benchmark_config->n_iterations, MPI_Wtick());
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Min Time: %.20lf seconds\n", min_time);
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Max Time: %.20lf seconds\n", max_time);
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Avg Time: %.20lf seconds\n", avg_time);
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Amplified avg Time: %.20lf seconds\n", total_avg_time);
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "***\n");
-
-    if (benchmark_result != NULL) {
-        benchmark_result->min_time = min_time;
-        benchmark_result->max_time = max_time;
-        benchmark_result->avg_time = avg_time;
-    }
-
-}*/
