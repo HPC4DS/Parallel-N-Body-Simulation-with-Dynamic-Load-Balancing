@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     benchmark_config.logs_dir = strdup(logs_dir_str.c_str());
     benchmark_config.mpi_log_file = &benchmark_log_file;
     strcpy(benchmark_config.description, "Main app testing benchmark");
-    benchmark_config.max_iterations = 5;
+    benchmark_config.repetitions = 15;
     benchmark_config.min_time = 0.5; // seconds
     benchmark_config.sweep_value = 0;
     strcpy(benchmark_config.sweep_name, "N/A");
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     benchmark_init(my_rank, &benchmark_config);
     std::function<void()> pre = [&]() {};
     std::function<void()> app = [&]() {
-        for (int i = 0; i < 10000; ++i) {
+        for (int i = 0; i < 1000000; ++i) {
             volatile double x = std::sin(i) * std::cos(i); // Dummy computation
         }
     };

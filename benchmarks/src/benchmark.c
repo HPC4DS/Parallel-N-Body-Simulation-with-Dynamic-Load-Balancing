@@ -226,7 +226,7 @@ void benchmark_init(const int my_rank, const BenchmarkConfig* benchmark_config) 
 
     write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->description);
 
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;iteration;global_time;time_min_rank;time_min;time_max_rank;time_max\n", benchmark_config->sweep_name);
+    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;repetition;iteration;global_time;time_min_rank;time_min;time_max_rank;time_max\n", benchmark_config->sweep_name);
 }
 
 /**
@@ -334,7 +334,7 @@ int determine_benchmark_iterations(const int my_rank, const REPETITION_STRATEGY 
  * @param postHookArgs The arguments to pass to the post-hook function.
  * @param benchmark_result The structure to store benchmark results.
  */
-void benchmark_run_c(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, const Application preHook, void *preHookArgs, const Application app, void *appArgs, const Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result) {
+void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, const Application preHook, void *preHookArgs, const Application app, void *appArgs, const Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result) {
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
@@ -350,38 +350,42 @@ void benchmark_run_c(const int my_rank, const REPETITION_STRATEGY repetition_str
 
     //=============================================================================
     UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK***\n");
-    for (int i = 0; i < iterations; i++) {
-        MPI_Barrier(MPI_COMM_WORLD);
-        preHook(preHookArgs);
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        const double start_time = MPI_Wtime();
-        app(appArgs);
-        const double local_end = MPI_Wtime();
+    //fixme: currently repetitions are independent, we could gather statistics across repetitions (or perform unique time measurement across repetitions)
+    for (int rep = 0; rep < benchmark_config->repetitions; rep++) {
+        for (int i = 0; i < iterations; i++) {
+            MPI_Barrier(MPI_COMM_WORLD);
+            preHook(preHookArgs);
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        const double global_end = MPI_Wtime();
+            MPI_Barrier(MPI_COMM_WORLD);
+            const double start_time = MPI_Wtime();
+            app(appArgs);
+            const double local_end = MPI_Wtime();
 
-        local_time = local_end - start_time;
-        global_time = global_end - start_time;
+            MPI_Barrier(MPI_COMM_WORLD);
+            const double global_end = MPI_Wtime();
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        postHook(postHookArgs);
+            local_time = local_end - start_time;
+            global_time = global_end - start_time;
 
-        MPI_Gather(&local_time, 1, MPI_DOUBLE, all_local_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+            postHook(postHookArgs);
 
-        // Per-iteration statistics
-        if (my_rank == 0) {
-            double iter_min = DBL_MAX, iter_max = 0;
-            int iter_min_rank = -1, iter_max_rank = -1;
+            MPI_Gather(&local_time, 1, MPI_DOUBLE, all_local_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-            for (int r = 0; r < world_size; r++) {
-                const double t = all_local_times[r];
-                if (t <= iter_min) {iter_min = t; iter_min_rank = r;}
-                if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
+            // Per-iteration statistics
+            if (my_rank == 0) {
+                double iter_min = DBL_MAX, iter_max = 0;
+                int iter_min_rank = -1, iter_max_rank = -1;
+
+                for (int r = 0; r < world_size; r++) {
+                    const double t = all_local_times[r];
+                    if (t <= iter_min) {iter_min = t; iter_min_rank = r;}
+                    if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
+                }
+                benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%d;%d;%d;%.20lf;%d;%.20lf;%d;%.20lf\n",
+                                     benchmark_config->sweep_value, rep, i + 1, global_time, iter_min_rank, iter_min, iter_max_rank, iter_max);
             }
-            benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%d;%d;%.20lf;%d;%.20lf;%d;%.20lf\n",
-                                 benchmark_config->sweep_value, i + 1, global_time, iter_min_rank, iter_min, iter_max_rank, iter_max);
         }
     }
     //=============================================================================
@@ -389,102 +393,3 @@ void benchmark_run_c(const int my_rank, const REPETITION_STRATEGY repetition_str
 
     free(all_local_times);
 }
-
-//FIXME: if benchmarked application calls any collective MPI function, imbalance statistics may be incorrect (since benchmark cannot know which process waited more)
-/**
- * Runs the benchmark for the given application and logs the execution time.
- * benchmark_run_c is a collective operation
- *
- * @param my_rank The rank of the current process.
- * @param repetition_strategy The strategy for repeating the benchmark.
- * @param benchmark_config The configuration for the benchmark.
- * @param preHook The pre-hook function to execute before the application function.
- * @param preHookArgs The arguments to pass to the pre-hook function.
- * @param app The application function to benchmark.
- * @param appArgs The arguments to pass to the application function.
- * @param postHook The post-hook function to execute after the application function.
- * @param postHookArgs The arguments to pass to the post-hook function.
- * @param benchmark_result The structure to store benchmark results.
- */
-/*
-void benchmark_run_c(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, const Application preHook, void *preHookArgs, const Application app, void *appArgs, const Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result) {
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    double *local_times = malloc(benchmark_config->max_iterations * sizeof(double));
-    double *global_times = malloc(benchmark_config->max_iterations * sizeof(double));
-    double *all_local_times = NULL;
-
-    if (my_rank == 0) {
-        all_local_times = malloc(world_size * benchmark_config->max_iterations * sizeof(double));
-    }
-
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK***\n");
-
-    //=============================================================================
-    int iterations;
-    for (iterations = 0; iterations < benchmark_config->max_iterations; iterations++) {
-        MPI_Barrier(MPI_COMM_WORLD);
-        preHook(preHookArgs);
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        const double start_time = MPI_Wtime();
-        app(appArgs);
-        const double local_end = MPI_Wtime();
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        const double global_end = MPI_Wtime();
-
-        local_times[iterations] = local_end - start_time;
-        global_times[iterations] = global_end - start_time;
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        postHook(postHookArgs);
-    }
-    //=============================================================================
-
-
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK***\n");
-
-    // Gather all local times to rank 0
-    MPI_Gather(local_times, iterations, MPI_DOUBLE,
-               all_local_times, iterations, MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
-
-    if (my_rank == 0) {
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "\n***\n");
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "Results over %d iterations\n", iterations);
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "***\n\n");
-
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "iteration;global_time;min_rank;min;max_rank;max;avg;imbalance\n");
-
-        // Per-iteration statistics
-        for (int i = 0; i < iterations; i++) {
-            double iter_min = DBL_MAX, iter_max = 0, iter_sum = 0;
-            int iter_min_rank = -1, iter_max_rank = -1;
-
-            for (int r = 0; r < world_size; r++) {
-                const double t = all_local_times[r * iterations + i];
-                if (t <= iter_min) {iter_min = t; iter_min_rank = r;}
-                if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
-                iter_sum += t;
-            }
-
-            const double iter_avg = iter_sum / world_size;
-            const double load_imbalance = (iter_max - iter_min) / iter_avg * 100.0;
-
-            //benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,
-            //    "Iteration %d: Global=%.6lf, Min(rank %d)=%.6lf, Max(rank %d)=%.6lf, Avg=%.6lf, Imbalance=%.2f%%\n",
-            //   i + 1, global_times[i], iter_min_rank, iter_min, iter_max_rank, iter_max, iter_avg, load_imbalance);
-
-            benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%d;%.20lf;%d;%.20lf;%d;%.20lf;%.20lf;%.2f\n",
-                i + 1, global_times[i], iter_min_rank, iter_min, iter_max_rank, iter_max, iter_avg, load_imbalance);
-        }
-
-        free(all_local_times);
-    }
-
-    free(local_times);
-    free(global_times);
-}
-*/

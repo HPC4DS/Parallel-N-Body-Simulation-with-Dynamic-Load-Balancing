@@ -44,7 +44,7 @@ extern "C" {
     void benchmark_init(int my_rank, const BenchmarkConfig* benchmark_config);
     void benchmark_finalize(int my_rank, const BenchmarkConfig* benchmark_config);
 
-    void benchmark_run_c(int my_rank, REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, Application preHook, void *preHookArgs, Application app, void *appArgs, Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result);
+    void benchmark_run(int my_rank, REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, Application preHook, void *preHookArgs, Application app, void *appArgs, Application postHook, void *postHookArgs, BenchmarkResult* benchmark_result);
 
 #ifdef __cplusplus
 }

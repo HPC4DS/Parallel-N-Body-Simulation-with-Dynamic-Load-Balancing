@@ -14,7 +14,7 @@ extern "C" inline void benchmark_cpp_trampoline(void* userdata) {
 }
 
 inline void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, std::function<void()>& preHook, std::function<void()>& app, std::function<void()>& postHook, BenchmarkResult* benchmark_result) {
-    return benchmark_run_c(my_rank, repetition_strategy, benchmark_config, benchmark_cpp_trampoline, &preHook, benchmark_cpp_trampoline, &app, benchmark_cpp_trampoline, &postHook, benchmark_result);
+    return benchmark_run(my_rank, repetition_strategy, benchmark_config, benchmark_cpp_trampoline, &preHook, benchmark_cpp_trampoline, &app, benchmark_cpp_trampoline, &postHook, benchmark_result);
 }
 
 template <typename Lambda>
@@ -22,7 +22,8 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
     std::function<void()> fn_app = app;
     std::function<void()> fn_preHook = preHook;
     std::function<void()> fn_postHook = postHook;
-    return benchmark_run_c(my_rank, repetition_strategy, benchmark_config, benchmark_cpp_trampoline, &fn_preHook, benchmark_cpp_trampoline, &fn_app, benchmark_cpp_trampoline, &fn_postHook, benchmark_result);
+
+    return benchmark_run(my_rank, repetition_strategy, benchmark_config, benchmark_cpp_trampoline, &fn_preHook, benchmark_cpp_trampoline, &fn_app, benchmark_cpp_trampoline, &fn_postHook, benchmark_result);
 }
 
 #endif //CLION_OPENMP_MPI_BENCHMARK_HPP
