@@ -34,7 +34,7 @@ extern "C" {
         const char *logs_dir;
         MPI_File *mpi_log_file;
 
-        unsigned int sweep_value;
+        uint64_t sweep_value;
         char sweep_name[64];
     } BenchmarkConfig;
 

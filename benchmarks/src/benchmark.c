@@ -241,7 +241,7 @@ void benchmark_init(const int my_rank, const BenchmarkConfig* benchmark_config) 
 
     write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->description);
 
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;repetition;iteration;global_time;time_min_rank;time_min;time_max_rank;time_max\n", benchmark_config->sweep_name);
+    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;repetition;min_global_time [s];max_imbalance_time [s]\n", benchmark_config->sweep_name);
 }
 
 /**
@@ -369,24 +369,21 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] -> Determining iterations for sweep: %d\n", benchmark_config->sweep_value);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] -> Determining iterations for sweep: %lu\n", benchmark_config->sweep_value);
     const int iterations = determine_benchmark_iterations(my_rank, repetition_strategy, benchmark_config, preHook, preHookArgs, app, appArgs, postHook, postHookArgs);
 
-    double global_time;
-    double local_time;
-    double *all_local_times = NULL;
 
-    if (my_rank == 0) {
-        all_local_times = malloc(world_size * sizeof(double));
-    }
+    double min_local_time;
+    double max_local_time;
+    double min_world_time = DBL_MAX;
+    double max_imbalance = 0.0;
 
     //=============================================================================
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK (sweep: %d)***\n", benchmark_config->sweep_value);
 
-    //fixme: currently repetitions are independent, we could gather statistics across repetitions (or perform unique time measurement across repetitions)
-    // TODO
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK (sweep: %lu)***\n", benchmark_config->sweep_value);
+
     for (int rep = 1; rep <= benchmark_config->repetitions; rep++) {
-        for (int iter = 1; iter <= iterations; iter++) {
+        for (int i = 1; i <= iterations; i++) {
             MPI_Barrier(MPI_COMM_WORLD);
             preHook(preHookArgs);
 
@@ -396,33 +393,31 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
             const double local_end = MPI_Wtime();
 
             MPI_Barrier(MPI_COMM_WORLD);
-            const double global_end = MPI_Wtime();
+            const double world_end = MPI_Wtime();
 
-            local_time = local_end - start_time;
-            global_time = global_end - start_time;
+            const double local_time = local_end - start_time;
+            const double world_time = world_end - start_time;
 
             MPI_Barrier(MPI_COMM_WORLD);
             postHook(postHookArgs);
 
-            MPI_Gather(&local_time, 1, MPI_DOUBLE, all_local_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_time, &min_local_time, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_time, &max_local_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
-            // Per-iteration statistics
+            // Calculate imbalance and min global time on rank 0
             if (my_rank == 0) {
-                double iter_min = DBL_MAX, iter_max = 0;
-                int iter_min_rank = -1, iter_max_rank = -1;
+                if (world_time < min_world_time) { min_world_time = world_time;}
 
-                for (int r = 0; r < world_size; r++) {
-                    const double t = all_local_times[r];
-                    if (t <= iter_min) {iter_min = t; iter_min_rank = r;}
-                    if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
-                }
-                benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%d;%d;%d;%.20lf;%d;%.20lf;%d;%.20lf\n",
-                                     benchmark_config->sweep_value, rep, iter, global_time, iter_min_rank, iter_min, iter_max_rank, iter_max);
+                const double imbalance = max_local_time - min_local_time;
+                if (imbalance > max_imbalance) { max_imbalance = imbalance;}
             }
         }
-    }
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK (sweep: %d)***\n", benchmark_config->sweep_value);
-    //=============================================================================
 
-    free(all_local_times);
+        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%lu;%d;%.20lf;%.20lf;\n",
+                                     benchmark_config->sweep_value, rep, min_world_time, max_imbalance);
+    }
+
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK (sweep: %lu)***\n", benchmark_config->sweep_value);
+
+    //=============================================================================
 }

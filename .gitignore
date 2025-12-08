@@ -9,3 +9,5 @@ output/local/logs/
 output/HPC/logs/
 output/local/simulations/
 output/HPC/simulations/
+
+benchmarks/runs/

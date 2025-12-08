@@ -2,24 +2,22 @@
 // Created by Matteo Ranzi on 08/12/25.
 //
 
-#include <omp.h>
 #include <mpi.h>
 
 #include <cstdlib>
 #include <cstring>
 #include <unistd.h>
+#include <vector>
 
 #include "debug/print_debug.h"
-#include "debug/unique_print_debug.h"
 #include "utils/build_info.h"
 #include "utils/random_values.hpp"
 
 #include "benchmark.hpp"
-#include "BuildInfo.h"
 #include "linear_algorithms.hpp"
 
 constexpr int radixBits = 10;
-constexpr int max_vector_size_exp = 32;
+constexpr int max_vector_size_exp = 10; // up to 2^32 elements
 
 int main(int argc, char *argv[]) {
     int comm_size;
@@ -43,30 +41,22 @@ int main(int argc, char *argv[]) {
 
     benchmark_init(my_rank, &benchmark_config);
 
-    int vector_size;
+    // Use size_t for sizes to avoid overflow and match random_fill signature
+    size_t vector_size;
     std::vector<uint64_t> numbers;
     std::function<void()> pre = [&]() {
-        random_fill(numbers, vector_size, 0LU, 1LU << 63);
+        try {
+            random_fill(numbers, vector_size, 0LU, 1ULL << 63);
+        } catch (const std::length_error &e) {
+            PRINT_DEBUG_ERROR_R(my_rank, "Allocation failed in random_fill: %s", e.what());
+            // abort the MPI job to avoid continuing with invalid state
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
     };
     std::function<void()> app = [&]() {
-        switch (radixBits) {
-        case 1:  radix_sort<1>(numbers.begin(), numbers.end()); break;
-        case 2:  radix_sort<2>(numbers.begin(), numbers.end()); break;
-        case 3:  radix_sort<3>(numbers.begin(), numbers.end()); break;
-        case 4:  radix_sort<4>(numbers.begin(), numbers.end()); break;
-        case 5:  radix_sort<5>(numbers.begin(), numbers.end()); break;
-        case 6:  radix_sort<6>(numbers.begin(), numbers.end()); break;
-        case 7:  radix_sort<7>(numbers.begin(), numbers.end()); break;
-        case 8:  radix_sort<8>(numbers.begin(), numbers.end()); break;
-        case 9:  radix_sort<9>(numbers.begin(), numbers.end()); break;
-        case 10: radix_sort<10>(numbers.begin(), numbers.end()); break;
-        case 11: radix_sort<11>(numbers.begin(), numbers.end()); break;
-        case 12: radix_sort<12>(numbers.begin(), numbers.end()); break;
-        case 13: radix_sort<13>(numbers.begin(), numbers.end()); break;
-        case 14: radix_sort<14>(numbers.begin(), numbers.end()); break;
-        case 15: radix_sort<15>(numbers.begin(), numbers.end()); break;
-        default: break;
-        }
+        static_assert(radixBits >= 1 && radixBits <= 16, "radixBits must be between 1 and 16");
+        // direct compile-time call removes unreachable-case warnings
+        radix_sort<radixBits>(numbers.begin(), numbers.end());
     };
     std::function<void()> post = [&]() {
         // Verify sorting
@@ -78,9 +68,14 @@ int main(int argc, char *argv[]) {
         }
     };
 
-    std::vector<int> sweep_values;
+    // Build sweep values carefully: use size_t and avoid shifts that overflow or exceed limits
+    std::vector<size_t> sweep_values;
     for (int i = 0; i <= max_vector_size_exp; i++) {
-        sweep_values.push_back(1<<i);
+        const size_t candidate = (1ULL << i);
+        // stop if candidate exceeds what a vector can allocate
+        if (candidate == 0) break;
+        if (candidate > numbers.max_size()) break;
+        sweep_values.push_back(candidate);
     }
 
     for (const auto& sv : sweep_values) {
