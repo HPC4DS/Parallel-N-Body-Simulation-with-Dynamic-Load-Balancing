@@ -85,8 +85,8 @@ static void open_benchmark_file(const int my_rank, const char *filename, MPI_Fil
             benchmark_abort(1);
         }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     const int ret = MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY | MPI_MODE_APPEND, MPI_INFO_NULL, mpi_file);
     if (ret != MPI_SUCCESS) {
         handle_mpi_error_and_abort(my_rank, ret, "[BENCHMARK] Cannot open benchmark log file");
@@ -107,7 +107,7 @@ static void benchmark_unique_log(const int my_rank, const MPI_File *file, const 
     char buffer[4096];
     va_list args;
     va_start(args, format);
-    int len = vsnprintf(buffer, sizeof(buffer), format, args);
+    const int len = vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
     if (len < 0) return;
@@ -144,20 +144,20 @@ static void write_benchmark_log_header(const int my_rank, const MPI_File *file, 
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    char node_name[MPI_MAX_PROCESSOR_NAME];
+    char local_node_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
-    MPI_Get_processor_name(node_name, &name_len);
+    MPI_Get_processor_name(local_node_name, &name_len);
 
-    char *all_names = NULL;
+    char *all_node_names = NULL;
     if (my_rank == 0) {
-        all_names = malloc((size_t)world_size * MPI_MAX_PROCESSOR_NAME);
-        if (!all_names) {
+        all_node_names = malloc((size_t)world_size * MPI_MAX_PROCESSOR_NAME);
+        if (!all_node_names) {
             handle_mpi_error_and_abort(my_rank, MPI_ERR_OTHER, "[BENCHMARK] malloc failed");
         }
     }
 
-    const int ret = MPI_Gather(node_name, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
-               all_names, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
+    const int ret = MPI_Gather(local_node_name, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
+               all_node_names, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
                0, MPI_COMM_WORLD);
 
     if (ret != MPI_SUCCESS) {
@@ -167,16 +167,15 @@ static void write_benchmark_log_header(const int my_rank, const MPI_File *file, 
     benchmark_unique_log(my_rank, file, "Number of MPI processes: %d\n", world_size);
     if (my_rank == 0) {
         for (int r = 0; r < world_size; r++) {
-            if (all_names != NULL) {
-                char *recv_name = all_names + r * MPI_MAX_PROCESSOR_NAME;
+            if (all_node_names != NULL) {
+                char *recv_name = all_node_names + r * MPI_MAX_PROCESSOR_NAME;
                 benchmark_unique_log(my_rank, file, "Rank: %d > node: %s\n", r, recv_name);
             }
         }
-        free(all_names);
+        free(all_node_names);
     }
 
     benchmark_unique_log(my_rank, file, "------------------\n");
-
 
     char build_info[512];
     build_info_to_string(build_info, sizeof(build_info));
@@ -210,9 +209,9 @@ void create_benchmark_dir_if_not_exists(const int my_rank, const char *logs_dir)
 
 void default_benchmark_config(BenchmarkConfig* benchmark_config) {
 char logs_dir_buf[MAX_LOG_FILENAME_LENGTH];
-    const char *bdir = (BENCHMARK_DIR ? BENCHMARK_DIR : "");
-    const char *appid = (APPLICATION_ID ? APPLICATION_ID : "default_app");
-    const int len = snprintf(logs_dir_buf, sizeof(logs_dir_buf), "%s/%s", bdir, appid);
+    const char *benchmark_dir = (BENCHMARK_DIR ? BENCHMARK_DIR : "");
+    const char *app_id = (APPLICATION_ID ? APPLICATION_ID : "default_app");
+    const int len = snprintf(logs_dir_buf, sizeof(logs_dir_buf), "%s/%s", benchmark_dir, app_id);
     if (len < 0 || len >= (int)sizeof(logs_dir_buf)) {
         benchmark_abort(1);
     }
@@ -241,7 +240,7 @@ void benchmark_init(const int my_rank, const BenchmarkConfig* benchmark_config) 
 
     write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->description);
 
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;repetition;min_global_time [s];max_imbalance_time [s]\n", benchmark_config->sweep_name);
+    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;%s;repetition;min_global_time [s];max_imbalance_time [s]\n",benchmark_config->const_name, benchmark_config->sweep_name);
 }
 
 /**
@@ -262,7 +261,7 @@ void benchmark_finalize(const int my_rank, const BenchmarkConfig* benchmark_conf
 }
 
 
-static int next_iteration_count(int current, double scale) {
+static int next_iteration_count(const int current, const double scale) {
     double raw = current * scale;
 
     // Enforce growth constraints:
@@ -369,7 +368,7 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] -> Determining iterations for sweep: %lu\n", benchmark_config->sweep_value);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] -> Determining iterations for sweep: %zu\n", benchmark_config->sweep_value);
     const int iterations = determine_benchmark_iterations(my_rank, repetition_strategy, benchmark_config, preHook, preHookArgs, app, appArgs, postHook, postHookArgs);
 
 
@@ -380,7 +379,7 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
 
     //=============================================================================
 
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK (sweep: %lu)***\n", benchmark_config->sweep_value);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK (sweep: %zu)***\n", benchmark_config->sweep_value);
 
     for (int rep = 1; rep <= benchmark_config->repetitions; rep++) {
         for (int i = 1; i <= iterations; i++) {
@@ -413,11 +412,11 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
             }
         }
 
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%lu;%d;%.20lf;%.20lf;\n",
-                                     benchmark_config->sweep_value, rep, min_world_time, max_imbalance);
+        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"&lu;%lu;%d;%.20lf;%.20lf;\n",
+                                    benchmark_config->const_value, benchmark_config->sweep_value, rep, min_world_time, max_imbalance);
     }
 
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK (sweep: %lu)***\n", benchmark_config->sweep_value);
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK (sweep: %zu)***\n", benchmark_config->sweep_value);
 
     //=============================================================================
 }

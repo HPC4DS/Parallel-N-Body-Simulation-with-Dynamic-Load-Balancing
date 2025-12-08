@@ -24,8 +24,9 @@ export TMP_BINARY_PATH
 chmod +x "${TMP_BINARY_PATH}"
 echo "TMP_BINARY: ${TMP_BINARY_PATH}"
 
+# Submit the job in held state (-h) to allow for post-processing of the job submission (e.g., logging the job ID)
 # Preserving environment variables with -V (for example, REMOTE_WORKING_DIRECTORY)
-job_id=$(qsub -V  -o /dev/null -e /dev/null -l select="${CHUNKS}":ncpus="${N_CPUS}":mem="${MEMORY}":mpiprocs="${MPI_PROCESSES_PER_CHUNK}" -l walltime="${WALLTIME}" -l place="${PLACING}" -q "${QUEUE_TYPE}" "${REMOTE_WORKING_DIRECTORY}/scripts/run/run.pbs")  || { echo "[hpc_run.sh] Failed to submit job" >> ~/remote_run_error.log; exit 1; }
+job_id=$(qsub -h -V -o /dev/null -e /dev/null -l select="${CHUNKS}":ncpus="${N_CPUS}":mem="${MEMORY}":mpiprocs="${MPI_PROCESSES_PER_CHUNK}" -l walltime="${WALLTIME}" -l place="${PLACING}" -q "${QUEUE_TYPE}" "${REMOTE_WORKING_DIRECTORY}/scripts/run/run.pbs")  || { echo "[hpc_run.sh] Failed to submit job" >> ~/remote_run_error.log; exit 1; }
 echo "JOB_ID: ${job_id}"
 
 numeric_job_id="${job_id%%.*}"
@@ -36,3 +37,7 @@ chmod 444 "${HPC_JOB_LOGS_DIR}/${numeric_job_id}/job_config.log"
 
 mkdir -p "${HPC_JOB_LOGS_DIR}/last_job"
 echo "${numeric_job_id}" > "${HPC_JOB_LOGS_DIR}/last_job/job_id"
+
+# Release the queued job now that this submission script has completed
+qrls "${job_id}" || { echo "[hpc_run.sh] Failed to release job ${job_id}" >> ~/remote_run_error.log; exit 1; }
+echo "JOB_RELEASED: ${job_id}"

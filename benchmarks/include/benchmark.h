@@ -7,7 +7,6 @@
 
 #include <mpi.h>
 #include <stdio.h>
-#include <string.h>
 
 //TODO currently local benchmark is overwritten with previous ones
 //TODO convert benchmark to C++
@@ -34,7 +33,10 @@ extern "C" {
         const char *logs_dir;
         MPI_File *mpi_log_file;
 
-        uint64_t sweep_value;
+        size_t const_value;
+        char const_name[64];
+
+        size_t sweep_value;
         char sweep_name[64];
     } BenchmarkConfig;
 

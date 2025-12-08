@@ -2,10 +2,12 @@
 // Created by Matteo Ranzi on 08/12/25.
 //
 
+//TODO: examine the real usage of memory in GB
+
+
+#include <cstring>
 #include <mpi.h>
 
-#include <cstdlib>
-#include <cstring>
 #include <unistd.h>
 #include <vector>
 
@@ -16,8 +18,11 @@
 #include "benchmark.hpp"
 #include "linear_algorithms.hpp"
 
-constexpr int radixBits = 10;
-constexpr int max_vector_size_exp = 10; // up to 2^32 elements
+constexpr int defaultRadixBits = 10;
+constexpr int min_vector_size_exp = 20;
+constexpr int max_vector_size_exp = 30;
+
+static size_t parse_size_safe(const char* s);
 
 int main(int argc, char *argv[]) {
     int comm_size;
@@ -31,15 +36,34 @@ int main(int argc, char *argv[]) {
 
     print_build_info(my_rank);
 
+    const size_t radix_bits = parse_size_safe(getenv("PBS_ARRAY_INDEX")) == 0
+                                  ? defaultRadixBits
+                                  : parse_size_safe(getenv("PBS_ARRAY_INDEX"));
+
+    PRINT_DEBUG_INFO_R(my_rank, "TESTING PBS ARRAY JOBS\n");
+    PRINT_DEBUG_INFO_R(my_rank, "PBS array index: %s\n", getenv("PBS_ARRAY_INDEX"));
+
 
     //=============================================================================
     BenchmarkConfig benchmark_config;
     default_benchmark_config(&benchmark_config);
+    benchmark_config.repetitions = 1;
     benchmark_config.mpi_log_file = &benchmark_log_file;
-    snprintf(benchmark_config.description, sizeof(benchmark_config.description), "linear radix_sort<%d>", radixBits);
-    strcpy(benchmark_config.sweep_name, "vector_size");
+    snprintf(benchmark_config.description, sizeof(benchmark_config.description), "linear radix_sort<%d>", defaultRadixBits);
+    std::strcpy(benchmark_config.sweep_name, "vector_size");
+    std::strcpy(benchmark_config.const_name, "radix_bits");
+    benchmark_config.const_value = static_cast<size_t>(radix_bits);
 
     benchmark_init(my_rank, &benchmark_config);
+
+
+    //=============================================================================
+    benchmark_finalize(my_rank, &benchmark_config);
+    MPI_Finalize();
+    return 0;
+    //=============================================================================
+
+
 
     // Use size_t for sizes to avoid overflow and match random_fill signature
     size_t vector_size;
@@ -54,9 +78,25 @@ int main(int argc, char *argv[]) {
         }
     };
     std::function<void()> app = [&]() {
-        static_assert(radixBits >= 1 && radixBits <= 16, "radixBits must be between 1 and 16");
-        // direct compile-time call removes unreachable-case warnings
-        radix_sort<radixBits>(numbers.begin(), numbers.end());
+        //std::sort(numbers.begin(), numbers.end());
+        switch (defaultRadixBits) {
+        case 1:  radix_sort<1>(numbers.begin(), numbers.end()); break;
+        case 2:  radix_sort<2>(numbers.begin(), numbers.end()); break;
+        case 3:  radix_sort<3>(numbers.begin(), numbers.end()); break;
+        case 4:  radix_sort<4>(numbers.begin(), numbers.end()); break;
+        case 5:  radix_sort<5>(numbers.begin(), numbers.end()); break;
+        case 6:  radix_sort<6>(numbers.begin(), numbers.end()); break;
+        case 7:  radix_sort<7>(numbers.begin(), numbers.end()); break;
+        case 8:  radix_sort<8>(numbers.begin(), numbers.end()); break;
+        case 9:  radix_sort<9>(numbers.begin(), numbers.end()); break;
+        case 10: radix_sort<10>(numbers.begin(), numbers.end()); break;
+        case 11: radix_sort<11>(numbers.begin(), numbers.end()); break;
+        case 12: radix_sort<12>(numbers.begin(), numbers.end()); break;
+        case 13: radix_sort<13>(numbers.begin(), numbers.end()); break;
+        case 14: radix_sort<14>(numbers.begin(), numbers.end()); break;
+        case 15: radix_sort<15>(numbers.begin(), numbers.end()); break;
+        default: break;
+        }
     };
     std::function<void()> post = [&]() {
         // Verify sorting
@@ -70,7 +110,7 @@ int main(int argc, char *argv[]) {
 
     // Build sweep values carefully: use size_t and avoid shifts that overflow or exceed limits
     std::vector<size_t> sweep_values;
-    for (int i = 0; i <= max_vector_size_exp; i++) {
+    for (int i = min_vector_size_exp; i <= max_vector_size_exp; i++) {
         const size_t candidate = (1ULL << i);
         // stop if candidate exceeds what a vector can allocate
         if (candidate == 0) break;
@@ -91,4 +131,14 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
 
     return 0;
+}
+
+static size_t parse_size_safe(const char* s) {
+    if (!s) return 0;
+    try {
+        const unsigned long long v = std::stoull(std::string(s));
+        return v;
+    } catch (...) {
+        return 0;
+    }
 }
