@@ -7,6 +7,8 @@ export APPLICATION_ID="$(($(date +%s%N)/1000000))"
 
 if [[ "${SANDBOX:-0}" == 1 ]]; then
     BINARY=$SANDBOX_BINARY
+elif [[ "${BENCHMARK:-0}" == 1 ]]; then
+    BINARY=$BENCHMARK_BINARY
 else
     BINARY=$PROJECT_BINARY
 fi

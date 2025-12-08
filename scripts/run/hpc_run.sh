@@ -7,9 +7,11 @@ source "${HPC_CONFIG_FILE}" || { echo "[hpc_run.sh] Failed to source HPC config 
 
 
 if [[ "${SANDBOX:-0}" == 1 ]]; then
-    BINARY=${SANDBOX_BINARY}
+    BINARY=$SANDBOX_BINARY
+elif [[ "${BENCHMARK:-0}" == 1 ]]; then
+    BINARY=$BENCHMARK_BINARY
 else
-    BINARY=${PROJECT_BINARY}
+    BINARY=$PROJECT_BINARY
 fi
 
 # Copy the application binary is a temporary location to avoid issues with concurrent runs modifying the binary while another job is running (or still in queue)

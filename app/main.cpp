@@ -15,7 +15,7 @@
 
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
-#include "utils/info_utils.h"
+#include "utils/build_info.h"
 
 #include "benchmark.hpp"
 #include "BuildInfo.h"

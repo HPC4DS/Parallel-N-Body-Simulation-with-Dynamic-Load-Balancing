@@ -15,7 +15,7 @@
 #include <array>
 
 #include "debug/print_debug.h"
-#include "utils/random_utils.h"
+#include "utils/random_values.hpp"
 
 #define SPACE_DIMENSIONS 3
 #define N_PARTICLES 100

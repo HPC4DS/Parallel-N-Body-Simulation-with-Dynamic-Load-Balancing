@@ -14,7 +14,7 @@
 // #endif
 
 #include "debug/print_debug.h"
-#include "utils/random_utils.h"
+#include "utils/random_values.hpp"
 
 void visualize_morton_steps();
 void visualize_morton_positions();

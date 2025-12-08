@@ -196,9 +196,28 @@ int main() {
     std::vector<uint64_t> numbers;
 
     std::cout << "Filling vector with random numbers..." << std::endl;
-    random_fill(numbers, 80000000, 0LU, /*9209641988550369538*/ 1LU << 63);
+    random_fill(numbers, 80000000, 0LU, 1LU << 63);
 
-
+/*for (int bits = 1; bits <= 15; bits++) {
+    switch (bits) {
+        case 1:  radix_sort<1>(numbers.begin(), numbers.end()); break;
+        case 2:  radix_sort<2>(numbers.begin(), numbers.end()); break;
+        case 3:  radix_sort<3>(numbers.begin(), numbers.end()); break;
+        case 4:  radix_sort<4>(numbers.begin(), numbers.end()); break;
+        case 5:  radix_sort<5>(numbers.begin(), numbers.end()); break;
+        case 6:  radix_sort<6>(numbers.begin(), numbers.end()); break;
+        case 7:  radix_sort<7>(numbers.begin(), numbers.end()); break;
+        case 8:  radix_sort<8>(numbers.begin(), numbers.end()); break;
+        case 9:  radix_sort<9>(numbers.begin(), numbers.end()); break;
+        case 10: radix_sort<10>(numbers.begin(), numbers.end()); break;
+        case 11: radix_sort<11>(numbers.begin(), numbers.end()); break;
+        case 12: radix_sort<12>(numbers.begin(), numbers.end()); break;
+        case 13: radix_sort<13>(numbers.begin(), numbers.end()); break;
+        case 14: radix_sort<14>(numbers.begin(), numbers.end()); break;
+        case 15: radix_sort<15>(numbers.begin(), numbers.end()); break;
+        default: break;
+    }
+}*/
 
     std::cout << "radix_sort<10> vector elements..." << std::endl;
     //std::cout << "std::sort vector elements..." << std::endl;

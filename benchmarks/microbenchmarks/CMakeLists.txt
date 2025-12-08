@@ -1,8 +1,12 @@
-file(GLOB SANDBOX_SOURCES *.cpp *.c)
+# ============================================================
+# Microbenchmark executables
+# ============================================================
 
-set(SANDBOX_PRINT_DEBUG_LEVEL ${GLOBAL_PRINT_DEBUG_LEVEL} CACHE STRING "Debug level for sandbox")
+file(GLOB MICROBENCHMARK_SOURCES *.cpp *.c)
 
-foreach(src ${SANDBOX_SOURCES})
+set(MICROBENCHMARK_PRINT_DEBUG_LEVEL ${GLOBAL_PRINT_DEBUG_LEVEL} CACHE STRING "Debug level for micorbenchmarks")
+
+foreach(src ${MICROBENCHMARK_SOURCES})
     get_filename_component(exec ${src} NAME_WE)
 
     add_executable(${exec} ${src})
@@ -18,5 +22,5 @@ foreach(src ${SANDBOX_SOURCES})
     target_include_directories(${exec} PUBLIC "${PROJECT_BINARY_DIR}/generated")
     target_include_directories(${exec} PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
-    define_print_debug_level_for_target(${exec} ${SANDBOX_PRINT_DEBUG_LEVEL})
+    define_print_debug_level_for_target(${exec} ${MICROBENCHMARK_PRINT_DEBUG_LEVEL})
 endforeach()

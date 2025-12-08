@@ -17,7 +17,7 @@
 
 #include "debug/print_debug.h"
 #include "debug/unique_print_debug.h"
-#include "utils/info_utils.h"
+#include "utils/build_info.h"
 
 #define MAX_LOG_FILENAME_LENGTH 1024
 #define BENCHMARK_FILE_NAME "benchmark.log"
@@ -217,6 +217,7 @@ char logs_dir_buf[MAX_LOG_FILENAME_LENGTH];
         benchmark_abort(1);
     }
     benchmark_config->logs_dir = strdup(logs_dir_buf);
+    benchmark_config->max_iterations = 100;
     benchmark_config->repetitions = 15;
     benchmark_config->min_time = 0.5; // seconds
 }
@@ -300,6 +301,7 @@ double run_benchmark_iteration(const int my_rank, const int iterations, const Ap
     return elapsed_time;
 }
 
+
 int determine_benchmark_iterations(const int my_rank, const REPETITION_STRATEGY repetition_strategy, const BenchmarkConfig* benchmark_config, const Application preHook, void *preHookArgs, const Application app, void *appArgs, const Application postHook, void *postHookArgs) {
     if (repetition_strategy != MIN_TIME) {
         return benchmark_config->max_iterations;
@@ -314,13 +316,28 @@ int determine_benchmark_iterations(const int my_rank, const REPETITION_STRATEGY 
         return 1;
     }
 
+    int new_iterations = iterations;
     while (time < benchmark_config->min_time) {
         if (my_rank == 0) {
             const double scale = benchmark_config->min_time / time * 1.1; // add 10% margin to speed up convergence
-            iterations = next_iteration_count(iterations, scale);
-        } else {
-            MPI_Allgather(&iterations, 1, MPI_INT, &iterations, 1, MPI_INT, MPI_COMM_WORLD);
+            new_iterations = next_iteration_count(iterations, scale);
         }
+
+        MPI_Bcast(&iterations, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+        if (new_iterations == iterations) {
+            return iterations; // cannot increase further
+        }
+
+        // Enforce max_iterations limit
+        if (new_iterations > benchmark_config->max_iterations) {
+            new_iterations = benchmark_config->max_iterations;
+            UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] Reached max iterations limit: %d\n", benchmark_config->max_iterations);
+
+            return new_iterations;
+        }
+
+        iterations = new_iterations;
 
         UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] Testing %d iterations to reach min_time %.2lf seconds\n", iterations, benchmark_config->min_time);
         time = run_benchmark_iteration(my_rank, iterations, preHook, preHookArgs, app, appArgs, postHook, postHookArgs);

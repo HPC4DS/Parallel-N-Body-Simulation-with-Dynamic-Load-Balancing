@@ -67,6 +67,7 @@ include(cmake/utils.cmake)
 
 add_subdirectory(src)
 add_subdirectory(benchmarks/src)
+add_subdirectory(benchmarks/microbenchmarks)
 add_subdirectory(app)
 add_subdirectory(sandbox)
 

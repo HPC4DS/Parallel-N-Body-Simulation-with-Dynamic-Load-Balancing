@@ -24,7 +24,12 @@ static inline void print_build_info(const int rank) {
     UNIQUE_PRINT(rank, "Build Type: %s\n", BUILD_TYPE);
     UNIQUE_PRINT(rank, "Compiler: %s\n", CXX_COMPILER);
     UNIQUE_PRINT(rank, "CXX Flags: %s\n", CXX_FLAGS);
+    UNIQUE_PRINT(rank, "CXX Release Flags: %s\n", CXX_FLAGS_RELEASE);
+    UNIQUE_PRINT(rank, "CXX Debug Flags: %s\n", CXX_FLAGS_DEBUG);
     UNIQUE_PRINT(rank, "C Flags: %s\n", C_FLAGS);
+    UNIQUE_PRINT(rank, "C Release Flags: %s\n", C_FLAGS_RELEASE);
+    UNIQUE_PRINT(rank, "C Debug Flags: %s\n", C_FLAGS_DEBUG);
+    UNIQUE_PRINT(rank, "Build Host: %s\n", BUILD_HOST);
     UNIQUE_PRINT(rank, "CMake Timestamp: %s\n", CMAKE_TIMESTAMP);
     UNIQUE_PRINT(rank, "System: %s (%s)\n", SYSTEM_NAME, SYSTEM_PROCESSOR);
     UNIQUE_PRINT(rank, "==================================================\n\n");
@@ -42,7 +47,12 @@ static inline void build_info_to_string(char* buffer, const size_t buffer_size) 
     offset += snprintf(buffer + offset, buffer_size - offset, "Build Type: %s\n", BUILD_TYPE);
     offset += snprintf(buffer + offset, buffer_size - offset, "Compiler: %s\n", CXX_COMPILER);
     offset += snprintf(buffer + offset, buffer_size - offset, "CXX Flags: %s\n", CXX_FLAGS);
+    offset += snprintf(buffer + offset, buffer_size - offset, "CXX Release Flags: %s\n", CXX_FLAGS_RELEASE);
+    offset += snprintf(buffer + offset, buffer_size - offset, "CXX Debug Flags: %s\n", CXX_FLAGS_DEBUG);
     offset += snprintf(buffer + offset, buffer_size - offset, "C Flags: %s\n", C_FLAGS);
+    offset += snprintf(buffer + offset, buffer_size - offset, "C Release Flags: %s\n", C_FLAGS_RELEASE);
+    offset += snprintf(buffer + offset, buffer_size - offset, "C Debug Flags: %s\n", C_FLAGS_DEBUG);
+    offset += snprintf(buffer + offset, buffer_size - offset, "Build Host: %s\n", BUILD_HOST);
     offset += snprintf(buffer + offset, buffer_size - offset, "CMake Timestamp: %s\n", CMAKE_TIMESTAMP);
               snprintf(buffer + offset, buffer_size - offset, "System: %s (%s)\n", SYSTEM_NAME, SYSTEM_PROCESSOR);
 }
