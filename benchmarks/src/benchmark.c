@@ -208,6 +208,20 @@ void create_benchmark_dir_if_not_exists(const int my_rank, const char *logs_dir)
 }
 
 
+void default_benchmark_config(BenchmarkConfig* benchmark_config) {
+char logs_dir_buf[MAX_LOG_FILENAME_LENGTH];
+    const char *bdir = (BENCHMARK_DIR ? BENCHMARK_DIR : "");
+    const char *appid = (APPLICATION_ID ? APPLICATION_ID : "default_app");
+    const int len = snprintf(logs_dir_buf, sizeof(logs_dir_buf), "%s/%s", bdir, appid);
+    if (len < 0 || len >= (int)sizeof(logs_dir_buf)) {
+        benchmark_abort(1);
+    }
+    benchmark_config->logs_dir = strdup(logs_dir_buf);
+    benchmark_config->repetitions = 15;
+    benchmark_config->min_time = 0.5; // seconds
+}
+
+
 /**
  * Initializes the benchmark by creating and opening the log file.
  * benchmark_init is a collective operation
@@ -338,6 +352,7 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] -> Determining iterations for sweep: %d\n", benchmark_config->sweep_value);
     const int iterations = determine_benchmark_iterations(my_rank, repetition_strategy, benchmark_config, preHook, preHookArgs, app, appArgs, postHook, postHookArgs);
 
     double global_time;
@@ -349,11 +364,12 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
     }
 
     //=============================================================================
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK***\n");
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***STARTING BENCHMARK (sweep: %d)***\n", benchmark_config->sweep_value);
 
     //fixme: currently repetitions are independent, we could gather statistics across repetitions (or perform unique time measurement across repetitions)
-    for (int rep = 0; rep < benchmark_config->repetitions; rep++) {
-        for (int i = 0; i < iterations; i++) {
+    // TODO
+    for (int rep = 1; rep <= benchmark_config->repetitions; rep++) {
+        for (int iter = 1; iter <= iterations; iter++) {
             MPI_Barrier(MPI_COMM_WORLD);
             preHook(preHookArgs);
 
@@ -384,12 +400,12 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
                     if (t >= iter_max) {iter_max = t; iter_max_rank = r;}
                 }
                 benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%d;%d;%d;%.20lf;%d;%.20lf;%d;%.20lf\n",
-                                     benchmark_config->sweep_value, rep, i + 1, global_time, iter_min_rank, iter_min, iter_max_rank, iter_max);
+                                     benchmark_config->sweep_value, rep, iter, global_time, iter_min_rank, iter_min, iter_max_rank, iter_max);
             }
         }
     }
+    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK (sweep: %d)***\n", benchmark_config->sweep_value);
     //=============================================================================
-    UNIQUE_PRINT_DEBUG_INFO(my_rank, "[BENCHMARK] ***ENDING BENCHMARK***\n");
 
     free(all_local_times);
 }

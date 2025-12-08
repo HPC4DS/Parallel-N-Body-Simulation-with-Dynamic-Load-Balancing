@@ -12,6 +12,14 @@
 //TODO currently local benchmark is overwritten with previous ones
 //TODO convert benchmark to C++
 
+#ifdef HPC_RUN
+#define BENCHMARK_DIR getenv("HPC_BENCHMARK_DIR")
+#define APPLICATION_ID getenv("JOB_ID")
+#else
+#define BENCHMARK_DIR getenv("LOCAL_BENCHMARK_DIR")
+#define APPLICATION_ID getenv("APPLICATION_ID")
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,6 +49,7 @@ extern "C" {
         MIN_TIME
     } REPETITION_STRATEGY;
 
+    void default_benchmark_config(BenchmarkConfig* benchmark_config);
     void benchmark_init(int my_rank, const BenchmarkConfig* benchmark_config);
     void benchmark_finalize(int my_rank, const BenchmarkConfig* benchmark_config);
 

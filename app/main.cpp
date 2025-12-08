@@ -20,13 +20,7 @@
 #include "benchmark.hpp"
 #include "BuildInfo.h"
 
-#ifdef HPC_RUN
-#define BENCHMARK_DIR getenv("HPC_BENCHMARK_DIR")
-#define APPLICATION_ID getenv("JOB_ID")
-#else
-#define BENCHMARK_DIR getenv("LOCAL_BENCHMARK_DIR")
-#define APPLICATION_ID getenv("APPLICATION_ID")
-#endif
+
 
 
 
@@ -49,24 +43,34 @@ int main(int argc, char *argv[]) {
 
     //=============================================================================
     BenchmarkConfig benchmark_config;
-    const std::string logs_dir_str = std::string(BENCHMARK_DIR ? BENCHMARK_DIR : "") + "/" + (APPLICATION_ID ? APPLICATION_ID : "default_app");
-    benchmark_config.logs_dir = strdup(logs_dir_str.c_str());
+    default_benchmark_config(&benchmark_config);
     benchmark_config.mpi_log_file = &benchmark_log_file;
     strcpy(benchmark_config.description, "Main app testing benchmark");
-    benchmark_config.repetitions = 15;
-    benchmark_config.min_time = 0.5; // seconds
+    strcpy(benchmark_config.sweep_name, "sweep_value");
     benchmark_config.sweep_value = 0;
-    strcpy(benchmark_config.sweep_name, "N/A");
 
     benchmark_init(my_rank, &benchmark_config);
-    std::function<void()> pre = [&]() {};
+
+    int v;
+    std::function<void()> pre = [&]() {
+        volatile double x = v * v; // Dummy operation
+    };
     std::function<void()> app = [&]() {
         for (int i = 0; i < 1000000; ++i) {
-            volatile double x = std::sin(i) * std::cos(i); // Dummy computation
+            volatile double x = std::sin(i * v) * std::cos(i); // Dummy computation
         }
     };
-    std::function<void()> post = [&](){};
-    benchmark_run(my_rank, REPETITION_STRATEGY::MIN_TIME, &benchmark_config, pre, app, post, nullptr);
+    std::function<void()> post = [&]() {
+        volatile double x = v * v; // Dummy operation
+    };
+
+    const std::vector<int> sweep_values = {1, 2, 4, 8, 16, 32, 64, 128};
+    for (const auto& sv : sweep_values) {
+        v = sv;
+        benchmark_config.sweep_value = sv;
+        benchmark_run(my_rank, REPETITION_STRATEGY::MIN_TIME, &benchmark_config, pre, app, post, nullptr);
+    }
+
     benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 
