@@ -6,8 +6,26 @@
 function(find_and_link_mpi_for_target tgt SCOPE)
     find_package(MPI REQUIRED)
 
-    target_link_libraries(${tgt} ${SCOPE} MPI::MPI_C)
-    colored_message(${Blue}  "Link MPI::MPI_C to target ${tgt}")
+    get_target_property(sources ${tgt} SOURCES)
+    set(has_cpp FALSE)
+    set(has_c FALSE)
+    foreach(src IN LISTS sources)
+        if(src MATCHES "\\.cpp$|\\.cxx$|\\.cc$")
+            set(HAS_CXX TRUE)
+        endif()
+        if(src MATCHES "\\.c$")
+            set(HAS_C TRUE)
+        endif ()
+    endforeach()
+
+    if(HAS_CXX)
+        colored_message(${Blue}  "Link MPI::MPI_CXX to target ${tgt}")
+        target_link_libraries(${tgt} ${SCOPE} MPI::MPI_CXX)
+    endif()
+    if(HAS_C)
+        colored_message(${Blue}  "Link MPI::MPI_C to target ${tgt}")
+        target_link_libraries(${tgt} ${SCOPE} MPI::MPI_C)
+    endif()
 endfunction()
 
 

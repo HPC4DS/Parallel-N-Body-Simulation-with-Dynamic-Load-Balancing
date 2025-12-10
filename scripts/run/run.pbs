@@ -1,43 +1,47 @@
 #!/bin/bash
 
-export LD_LIBRARY_PATH=/opt/pbs/lib:$LD_LIBRARY_PATH
+# Legacy HPC2 required paths
+#export LD_LIBRARY_PATH=/opt/pbs/lib:$LD_LIBRARY_PATH
 
-job_id="${PBS_JOBID%%.*}" # numeric job id
+# numeric job id
+job_id="${PBS_JOBID%%.*}"
+job_id="${job_id%%\[*}"
+
 
 cd "${REMOTE_WORKING_DIRECTORY}" || { echo "[run.pbs] Failed to change directory to ${REMOTE_WORKING_DIRECTORY}" >> "$HOME/job_${job_id}_error.log"; exit 1; }
 
+LOGS_DIR="${HPC_JOB_LOGS_DIR}"
+if  [[ "${BENCHMARK:-0}" == 1 ]]; then
+    LOGS_DIR="${HPC_BENCHMARK_DIR}"
+fi
 
 #---------------------------------------------------------------------------------------------------
-job_logs_dir="${HPC_JOB_LOGS_DIR}/${job_id}"
-
+job_logs_dir="${LOGS_DIR}/${job_id}"
 source "${job_logs_dir}/job_config.log"
 
+job_indexed_logs_dir="${job_logs_dir}/${PBS_ARRAY_INDEX}"
+mkdir -p "${job_indexed_logs_dir}"
 
-stdout_file="${job_logs_dir}/out.log"
-stderr_file="${job_logs_dir}/err.log"
+stdout_file="${job_indexed_logs_dir}/out.log"
+stderr_file="${job_indexed_logs_dir}/err.log"
 
 exec 1> "$stdout_file" 2> "$stderr_file"
 #---------------------------------------------------------------------------------------------------
 
 export JOB_ID="${job_id}"
 
-module load gcc91
-module load mpich-3.2.1--gcc-9.1.0
-
+# Legacy HPC2 toolchain module loads
+#module load gcc91
+#module load mpich-3.2.1--gcc-9.1.0
+#TODO set an environment variable in configs to load modules according to HPC toolchain config
+module load gompi/2023a
 
 if [[ "${MPI_RUN:-0}" == 1 ]]; then
+  # TODO: load parameters from benchmark config (in case of benchmark run, parametrized by PBS_ARRAY_INDEX)
     mpirun -n "${HPC_MPI_PROCESSES}" "${TMP_BINARY_PATH}"
-
 else
     "${BINARY_PATH}"
 fi
 
-if [[ -n "${TMP_BINARY_PATH}" ]]; then
-    parent_dir="$(dirname "${TMP_BINARY_PATH}")"
-    rm -f "${TMP_BINARY_PATH}"
-    if [[ -n "$parent_dir" && "$parent_dir" != "/" && "$parent_dir" != "." ]]; then
-        rm -rf "$parent_dir"
-    fi
-fi
 #---------------------------------------------------------------------------------------------------
 # mpiexec --report-bindings -np 8 --map-by node:pe=2 --bind-to core ./my_mpi_application

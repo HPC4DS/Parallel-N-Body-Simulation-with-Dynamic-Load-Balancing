@@ -7,6 +7,8 @@
 #include <cmath>
 #include <omp.h>
 #include <mpi.h>
+#include <iostream>
+
 
 #include <cstdlib>
 #include <unistd.h>
@@ -19,7 +21,6 @@
 
 #include "benchmark.hpp"
 #include "BuildInfo.h"
-
 
 
 
@@ -40,6 +41,10 @@ int main(int argc, char *argv[]) {
     print_build_info(my_rank);
 
     wait_for_attach_debugger(my_rank);
+
+    std::cout << "Hello HPC" << " from rank: #" << my_rank << " over " << comm_size << (comm_size==1?" process":" processes") << std::endl;
+    MPI_Finalize(
+    return 0;
 
     //=============================================================================
     BenchmarkConfig benchmark_config;
@@ -74,7 +79,7 @@ int main(int argc, char *argv[]) {
     benchmark_finalize(my_rank, &benchmark_config);
     //=============================================================================
 
-    
+
     MPI_Finalize();
 
     return 0;

@@ -22,6 +22,7 @@
 #define MAX_LOG_FILENAME_LENGTH 1024
 #define BENCHMARK_FILE_NAME "benchmark.log"
 
+#define CSV_BENCHMARK_DATA_SEPARATOR "#####"
 
 
 /**
@@ -210,8 +211,9 @@ void create_benchmark_dir_if_not_exists(const int my_rank, const char *logs_dir)
 void default_benchmark_config(BenchmarkConfig* benchmark_config) {
 char logs_dir_buf[MAX_LOG_FILENAME_LENGTH];
     const char *benchmark_dir = (BENCHMARK_DIR ? BENCHMARK_DIR : "");
-    const char *app_id = (APPLICATION_ID ? APPLICATION_ID : "default_app");
-    const int len = snprintf(logs_dir_buf, sizeof(logs_dir_buf), "%s/%s", benchmark_dir, app_id);
+    const char *indexed_folder = (INDEXED_FOLDER ? INDEXED_FOLDER : "");
+    const char *job_id = (JOB_ID ? JOB_ID : "default_app");
+    const int len = snprintf(logs_dir_buf, sizeof(logs_dir_buf), "%s/%s/%s", benchmark_dir, job_id, indexed_folder);
     if (len < 0 || len >= (int)sizeof(logs_dir_buf)) {
         benchmark_abort(1);
     }
@@ -240,7 +242,8 @@ void benchmark_init(const int my_rank, const BenchmarkConfig* benchmark_config) 
 
     write_benchmark_log_header(my_rank, benchmark_config->mpi_log_file, benchmark_config->description);
 
-    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;%s;repetition;min_global_time [s];max_imbalance_time [s]\n",benchmark_config->const_name, benchmark_config->sweep_name);
+    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "\n" CSV_BENCHMARK_DATA_SEPARATOR "\n");
+    benchmark_unique_log(my_rank, benchmark_config->mpi_log_file, "%s;%s;#repetition;min_global_time [s];max_imbalance_time [s]\n",benchmark_config->const_name, benchmark_config->sweep_name);
 }
 
 /**
@@ -412,7 +415,7 @@ void benchmark_run(const int my_rank, const REPETITION_STRATEGY repetition_strat
             }
         }
 
-        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"&lu;%lu;%d;%.20lf;%.20lf;\n",
+        benchmark_unique_log(my_rank, benchmark_config->mpi_log_file,"%lu;%lu;%d;%.20lf;%.20lf\n",
                                     benchmark_config->const_value, benchmark_config->sweep_value, rep, min_world_time, max_imbalance);
     }
 

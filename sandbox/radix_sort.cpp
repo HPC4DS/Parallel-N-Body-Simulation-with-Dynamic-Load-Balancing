@@ -264,8 +264,8 @@ int main() {
  *          radix_sort<10>: ~6.74 s
  * [BEST]   radix_sort<11>: ~5.93 s
  *
- * --->         SPEEDUP codeforces_radix_sort<4>:   ~1.31x (-23.6%)
- * --->         SPEEDUP radix_sort<8>:              ~1.82x (-44.97%)
- * --->         SPEEDUP radix_sort<10>:             ~1.99x (-49.8%)
- * ---> [BEST]  SPEEDUP radix_sort<11>:             ~2.26x (-55.8%)
+ * --->         SPEEDUP codeforces_radix_sort<4>:   ~1.31x (23.6%)
+ * --->         SPEEDUP radix_sort<8>:              ~1.82x (44.97%)
+ * --->         SPEEDUP radix_sort<10>:             ~1.99x (49.8%)
+ * ---> [BEST]  SPEEDUP radix_sort<11>:             ~2.26x (55.8%)
  */

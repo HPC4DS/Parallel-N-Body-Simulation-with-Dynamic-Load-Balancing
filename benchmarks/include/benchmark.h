@@ -11,12 +11,13 @@
 //TODO currently local benchmark is overwritten with previous ones
 //TODO convert benchmark to C++
 
-#ifdef HPC_RUN
 #define BENCHMARK_DIR getenv("HPC_BENCHMARK_DIR")
-#define APPLICATION_ID getenv("JOB_ID")
+#define JOB_ID getenv("JOB_ID")
+
+#ifdef HPC_RUN
+#define INDEXED_FOLDER getenv("PBS_ARRAY_INDEX")
 #else
-#define BENCHMARK_DIR getenv("LOCAL_BENCHMARK_DIR")
-#define APPLICATION_ID getenv("APPLICATION_ID")
+#define INDEXED_FOLDER 0
 #endif
 
 #ifdef __cplusplus

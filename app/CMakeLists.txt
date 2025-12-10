@@ -1,4 +1,5 @@
 add_executable(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/app/main.cpp)
+
 target_include_directories(${PROJECT_NAME} PRIVATE "${PROJECT_BINARY_DIR}/generated")
 
 #target_compile_options(CMAKE_CXX_FLAGS "-O3 -ftree-vectorize -march=native")
